@@ -884,6 +884,7 @@ function parseWorkbook(buf, label){
   if(!rcmSheetName) rcmSheetName = wb.SheetNames[0];
 
   var rows = XLSX.utils.sheet_to_json(wb.Sheets[rcmSheetName], {defval:"", range:1});
+  if(rows.length){ console.log("[RCM] Colunas detectadas:", Object.keys(rows[0])); }
   var firstKeys = rows.length ? Object.keys(rows[0]) : [];
   var hasHeader = false;
   firstKeys.forEach(function(k){
@@ -968,10 +969,13 @@ function parseFabRows(rows){
   var out = [];
   var seen = {};
   rows.forEach(function(row){
+    // Ignorar linhas canceladas
+    var detCanc = String(row["Det. Cancelado"] || "").trim().toUpperCase();
+    if(detCanc === "SIM") return;
     var tag = String(row["Número Detalhamento"] || row["Numero Detalhamento"] || "").trim();
     if(!tag || tag === "nan") return;
     if(!seen[tag]) seen[tag] = [];
-    var av = parseFloat(row["Avanço"] || row["Avanco"]);
+    var av = parseFloat(row["Avanço"] || row["Avanco"] || 0);
     if(!isNaN(av)) seen[tag].push(av);
     seen[tag]._ss = String(row["Nº Interno"] || row["No Interno"] || "");
     seen[tag]._status = String(row["Status de Exe."] || "");
@@ -987,7 +991,7 @@ function parseFabRows(rows){
       avg = sum / vals.length;
     }
     out.push({
-      tag:tag, ss:vals._ss || "", avanco:Math.round(avg*1000)/10,
+      tag:tag, ss:vals._ss || "", avanco:Math.round(avg*100),
       status:vals._status || "", tipo:vals._tipo || "", registro:vals._registro || ""
     });
   });
@@ -1010,7 +1014,7 @@ function parseRows(rows){
     status_linha:["Status de Fornecimento da Linha"],
     status_total:["Status de Fornecimento do Item na Totalidade"],
     tipo:["Tipo"],
-    escopo:["Escopo\nFornec.", "Escopo Fornec"],
+    escopo:["Escopo\nFornec.", "Escopo Fornec.", "Escopo Fornec", "Escopo\r\nFornec."],
     transacao:["Transação"],
     fornecedor:["Fornecedor"],
     oc_num:["Ordem de Compra Nº"],
@@ -1031,8 +1035,8 @@ function parseRows(rows){
     tag:["TAG/Det."],
     avanco:["%\nAvanço"],
     registro:["Registro"],
-    prazo_receb:["Prazo de Recebimento"],
-    data_nec:["Data de Necessidade"]
+    prazo_receb:["Prazo de Recebimento", "Prazo de Receb.", "Prazo Recebimento"],
+    data_nec:["Data de Necessidade", "Data Necessidade", "Dt. Necessidade"]
   };
   function gv(row, keys){
     for(var i=0;i<keys.length;i++){
@@ -1083,7 +1087,7 @@ function parseRows(rows){
       status_linha:String(gv(row,C.status_linha) || ""),
       status_total:String(gv(row,C.status_total) || ""),
       tipo:String(gv(row,C.tipo) || ""),
-      escopo:String(gv(row,C.escopo) || ""),
+      escopo:String(gv(row,C.escopo) || "").trim(),
       transacao:String(gv(row,C.transacao) || ""),
       fornecedor:String(gv(row,C.fornecedor) || ""),
       oc_num:fi(gv(row,C.oc_num)),
@@ -1174,7 +1178,7 @@ function getFilteredConsolidado(){
   if(fSS) mats = mats.filter(function(m){ return m._ss === fSS; });
   if(fSt) mats = mats.filter(function(m){ return m.status_linha === fSt; });
   if(fTp) mats = mats.filter(function(m){ return m.tipo === fTp; });
-  if(fEs) mats = mats.filter(function(m){ return m.escopo === fEs; });
+  if(fEs) mats = mats.filter(function(m){ return (m.escopo||"").trim() === fEs; });
   if(fCat) mats = mats.filter(function(m){ return (m.categoria || "Caldeiraria") === fCat; });
   if(fReg) mats = mats.filter(function(m){ return m.registro === fReg; });
   if(fTx) mats = mats.filter(function(m){
@@ -1594,7 +1598,7 @@ function applyFS(){
     var mats = ss.materiais.slice();
     if(fSt) mats = mats.filter(function(m){ return m.status_linha===fSt; });
     if(fTp) mats = mats.filter(function(m){ return m.tipo===fTp; });
-    if(fEs) mats = mats.filter(function(m){ return m.escopo===fEs; });
+    if(fEs) mats = mats.filter(function(m){ return (m.escopo||"").trim()===fEs; });
     if(fCat) mats = mats.filter(function(m){ return (m.categoria||"Caldeiraria")===fCat; });
     if(fReg) mats = mats.filter(function(m){ return m.registro===fReg; });
     if(fTx) mats = mats.filter(function(m){
