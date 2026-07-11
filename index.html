@@ -107,6 +107,26 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);font-
 .u-role-viewer{background:#dbeafe;color:#1d4ed8}
 .u-del{background:#fee2e2;color:#dc2626;border:none;border-radius:6px;padding:4px 9px;font-size:10px;font-weight:600;cursor:pointer}
 .u-del:hover{background:#fecaca}
+
+.sanc-card{border-radius:12px;overflow:hidden;box-shadow:0 3px 12px rgba(0,0,0,.1);border:1px solid var(--border);transition:.2s}
+.sanc-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,.15)}
+.sanc-card-header{padding:12px 14px 10px;position:relative}
+.sanc-card-ss{font-size:13px;font-weight:800;color:#fff;letter-spacing:.3px}
+.sanc-card-tipo{font-size:8.5px;color:rgba(255,255,255,.75);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sanc-card-badge{position:absolute;top:10px;right:12px;padding:3px 9px;border-radius:20px;font-size:8.5px;font-weight:700;text-transform:uppercase;background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.35)}
+.sanc-card-body{padding:11px 14px 13px;background:var(--card)}
+.sanc-card-title{font-size:10.5px;color:var(--text);line-height:1.45;font-weight:500;margin-bottom:8px;min-height:30px}
+.sanc-card-row{display:flex;align-items:center;gap:6px;margin-bottom:5px}
+.sanc-card-icon{font-size:11px;width:16px;text-align:center;flex-shrink:0}
+.sanc-card-info{font-size:10px;color:var(--sub)}
+.sanc-card-info b{color:var(--text);font-weight:600}
+.sanc-card-progress{margin-top:10px}
+.sanc-card-prog-bar{height:5px;border-radius:4px;background:var(--border);overflow:hidden;margin-top:4px}
+.sanc-card-prog-fill{height:100%;border-radius:4px;transition:width .6s}
+.sanc-kpi-chip{display:flex;align-items:center;gap:5px;background:var(--hover);border:1px solid var(--border);border-radius:20px;padding:4px 10px}
+.sanc-kpi-chip .dot{width:8px;height:8px;border-radius:50%}
+.sanc-kpi-chip span{font-size:10.5px;font-weight:700;color:var(--text)}
+
 .prazo-ok{background:#dcfce7;color:#15803d;border-radius:6px;padding:2px 6px;font-size:8.5px;font-weight:700;display:block;white-space:nowrap}
 .prazo-warn{background:#fef3c7;color:#b45309;border-radius:6px;padding:2px 6px;font-size:8.5px;font-weight:700;display:block;white-space:nowrap}
 .prazo-venc{background:#fee2e2;color:#dc2626;border-radius:6px;padding:2px 6px;font-size:8.5px;font-weight:700;display:block;white-space:nowrap}
@@ -351,7 +371,13 @@ canvas{max-width:100%!important}
     <div class="dash-card"><h3 id="dash-por-ss-title">Itens por SS</h3><div class="ch-sm"><canvas id="chss"></canvas></div></div>
     <div class="dash-card" style="grid-column:span 2"><h3 id="dash-reg-title">Percentual de Materiais por Registro</h3><div class="ch-h"><canvas id="chreg"></canvas></div></div>
     <div class="dash-card"><h3 id="dash-resumo-reg-title">Resumo por Registro</h3><div id="reg-summary" style="max-height:260px;overflow-y:auto"></div></div>
-    <div class="dash-card" style="grid-column:span 2"><h3><span id="dash-sanc-title">Status das SS — Relatorio SANC</span> <span style="font-size:9px;background:#e0f2fe;color:#0369a1;border-radius:4px;padding:1px 6px;font-weight:600">9 SS</span></span></h3><div class="ch-sm"><canvas id="chss-status"></canvas></div><div id="sanc-list" style="margin-top:10px;max-height:150px;overflow-y:auto"></div></div>
+    <div class="dash-card" style="grid-column:span 2">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+        <h3 style="margin:0"><span id="dash-sanc-title">Status das SS — Relatório SANC</span></h3>
+        <div id="sanc-kpi-bar" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+      </div>
+      <div id="sanc-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:12px"></div>
+    </div>
     <div class="dash-card" style="grid-column:span 2"><h3 id="dash-100-title">100% Recebido — SS e Registros Concluídos</h3><div id="full100" style="display:grid;grid-template-columns:1fr 1fr;gap:16px"></div></div>
   </div>
 </div>
@@ -1475,64 +1501,97 @@ function renderRegSummary(mats){
 
 function buildSSStatusChart(){
   if(cSSStatus){ cSSStatus.destroy(); cSSStatus = null; }
-  var statusMap = {};
-  var keys = Object.keys(SANC);
-  for(var i=0;i<keys.length;i++){
-    var st = SANC[keys[i]].status || "Desconhecido";
-    statusMap[st] = (statusMap[st]||0)+1;
+
+  var CFG = {
+    "Em Andamento": {grad:["#004b99","#0066cc"], icon:"⚙️", prog:60},
+    "Cancelada":    {grad:["#991b1b","#dc2626"], icon:"🚫", prog:100},
+    "Em Revisão":   {grad:["#5b21b6","#7c3aed"], icon:"🔍", prog:40},
+    "Planejamento": {grad:["#92400e","#d97706"], icon:"📋", prog:20},
+    "Concluída":    {grad:["#065f46","#16a34a"], icon:"✅", prog:100}
+  };
+  function getCfg(st){
+    var keys = Object.keys(CFG);
+    for(var i=0;i<keys.length;i++){ if(st && st.indexOf(keys[i].replace("ã","a").replace("é","e")) >= 0 || keys[i]===st) return CFG[keys[i]]; }
+    return {grad:["#374151","#6b7280"], icon:"📌", prog:0};
   }
-  var labels = Object.keys(statusMap);
-  var values = [];
-  for(var j=0;j<labels.length;j++) values.push(statusMap[labels[j]]);
-  var palMap = {"Em Andamento":"#004b99","Cancelada":"#dc2626","Em Revisao":"#7c3aed","Planejamento":"#d97706","Concluida":"#16a34a"};
-  var cols = [];
-  for(var k=0;k<labels.length;k++){
-    var lk = labels[k].replace("\u00e3","a").replace("\u00e9","e");
-    cols.push(palMap[lk]||"#94a3b8");
+
+  // KPI chips
+  var statusCnt = {};
+  Object.keys(SANC).forEach(function(ss){ var s=SANC[ss].status||"—"; statusCnt[s]=(statusCnt[s]||0)+1; });
+  var kpiEl = document.getElementById("sanc-kpi-bar");
+  if(kpiEl){
+    var kpiHtml = "";
+    var dotColors = {"Em Andamento":"#004b99","Cancelada":"#dc2626","Em Revisão":"#7c3aed","Planejamento":"#d97706","Concluída":"#16a34a"};
+    Object.keys(statusCnt).forEach(function(st){
+      var col = dotColors[st] || "#94a3b8";
+      kpiHtml += '<div class="sanc-kpi-chip">'+
+        '<div class="dot" style="background:'+col+'"></div>'+
+        '<span>'+statusCnt[st]+' '+st+'</span></div>';
+    });
+    kpiEl.innerHTML = kpiHtml;
   }
-  var tColor = chartTextColor();
-  cSSStatus = new Chart(document.getElementById("chss-status").getContext("2d"), {
-    type:"doughnut",
-    data:{labels:labels, datasets:[{data:values,
-      backgroundColor:cols.map(function(c){return c+"cc";}),
-      borderColor:cols, borderWidth:2, hoverOffset:7}]},
-    options:{responsive:true, maintainAspectRatio:false, cutout:"52%",
-      plugins:{
-        legend:{position:"right", labels:{font:{size:10}, boxWidth:11, padding:8, color:tColor,
-          generateLabels:function(chart){
-            var res = [];
-            for(var n=0;n<chart.data.labels.length;n++){
-              res.push({text:chart.data.labels[n]+" ("+chart.data.datasets[0].data[n]+")",
-                fillStyle:chart.data.datasets[0].backgroundColor[n],
-                strokeStyle:chart.data.datasets[0].borderColor[n], lineWidth:2, index:n});
-            }
-            return res;
-          }
-        }},
-        tooltip:{callbacks:{label:function(ctx){ return ctx.label+": "+ctx.parsed+" SS"; }}}
-      }
-    }
-  });
-  var listEl = document.getElementById("sanc-list");
-  if(!listEl) return;
-  var palMap2 = {"Em Andamento":["#dbeafe","#1d4ed8"],"Cancelada":["#fee2e2","#dc2626"],"Em Revisao":["#f3e8ff","#6d28d9"]};
+
+  // Cards
+  var el = document.getElementById("sanc-cards");
+  if(!el) return;
   var html = "";
   var ssKeys = Object.keys(SANC).sort();
-  for(var m=0;m<ssKeys.length;m++){
-    var ss = ssKeys[m];
+
+  ssKeys.forEach(function(ss){
     var d = SANC[ss];
-    var stk = (d.status||"").replace("\u00e3","a").replace("\u00e9","e");
-    var pair = palMap2[stk] || ["#f1f5f9","#475569"];
-    var titulo = (d.titulo||"").replace(/"/g,"&quot;");
-    html += '<div style="display:flex;align-items:center;justify-content:space-between;'+
-      'padding:5px 8px;border-radius:6px;margin-bottom:4px;background:'+pair[0]+'">'+
-      '<div><div style="font-size:11px;font-weight:700;color:'+pair[1]+'">'+ss+'</div>'+
-      '<div style="font-size:9px;color:#6b7280;margin-top:1px;max-width:220px;'+
-      'white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+titulo+'">'+titulo+'</div></div>'+
-      '<span style="font-size:9px;font-weight:700;color:'+pair[1]+';white-space:nowrap;margin-left:8px">'+d.status+'</span>'+
-      '</div>';
-  }
-  listEl.innerHTML = html;
+    var st = d.status || "—";
+    var cfg = getCfg(st);
+    var titulo = d.titulo || "—";
+    var tituloShort = titulo.length > 72 ? titulo.slice(0,72)+"…" : titulo;
+    var fase = d.fase || "—";
+    var tipo = d.tipo || "—";
+    var ini  = d.periodo_ini || "—";
+    var fim  = d.periodo_fim || "—";
+    var prio = d.prioridade || "";
+
+    // Barra de progresso baseada no status
+    var progMap = {"Em Andamento":55,"Cancelada":100,"Em Revisão":35,"Planejamento":15,"Concluída":100};
+    var stKey = Object.keys(progMap).filter(function(k){ return st.indexOf(k.replace("ã","a").replace("é","e"))>=0||k===st; })[0]||"";
+    var prog = progMap[stKey]||0;
+    var progColor = cfg.grad[1];
+
+    // Verificar se tem materiais no CUR (SS está na nossa base)
+    var hasMat = !!CUR[ss];
+    var matCnt = hasMat ? CUR[ss].materiais.length : 0;
+    var matReceb = hasMat ? CUR[ss].materiais.filter(function(m){ return m.status_linha==="Recebido"; }).length : 0;
+
+    html += '<div class="sanc-card">' +
+      // Header colorido
+      '<div class="sanc-card-header" style="background:linear-gradient(135deg,'+cfg.grad[0]+','+cfg.grad[1]+')">' +
+        '<div style="display:flex;align-items:flex-start;justify-content:space-between">' +
+          '<div>' +
+            '<div class="sanc-card-ss">'+cfg.icon+' '+ss+'</div>' +
+            '<div class="sanc-card-tipo">'+tipo.split(' - ').pop()+'</div>' +
+          '</div>' +
+          '<span class="sanc-card-badge">'+st+'</span>' +
+        '</div>' +
+      '</div>' +
+      // Body
+      '<div class="sanc-card-body">' +
+        '<div class="sanc-card-title" title="'+titulo+'">'+tituloShort+'</div>' +
+        '<div class="sanc-card-row"><span class="sanc-card-icon">📁</span><div class="sanc-card-info"><b>Fase:</b> '+fase.split('. ').pop()+'</div></div>' +
+        '<div class="sanc-card-row"><span class="sanc-card-icon">📅</span><div class="sanc-card-info"><b>Período:</b> '+ini+' → '+fim+'</div></div>' +
+        (prio ? '<div class="sanc-card-row"><span class="sanc-card-icon">🎯</span><div class="sanc-card-info"><b>Prioridade:</b> '+prio+'</div></div>' : '') +
+        (hasMat ? '<div class="sanc-card-row"><span class="sanc-card-icon">📦</span><div class="sanc-card-info"><b>Materiais:</b> '+matReceb+'/'+matCnt+' recebidos</div></div>' : '') +
+        // Barra de progresso
+        '<div class="sanc-card-progress">' +
+          '<div style="display:flex;justify-content:space-between;font-size:9px;color:var(--sub);margin-bottom:3px">' +
+            '<span>Progresso</span><span style="font-weight:700;color:'+progColor+'">'+prog+'%</span>' +
+          '</div>' +
+          '<div class="sanc-card-prog-bar">' +
+            '<div class="sanc-card-prog-fill" style="width:'+prog+'%;background:linear-gradient(90deg,'+cfg.grad[0]+','+cfg.grad[1]+')"></div>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  });
+
+  el.innerHTML = html;
 }
 
 function render100(mats){
