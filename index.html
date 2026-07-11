@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Controle de Suprimentos — P-66</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
@@ -322,7 +323,7 @@ canvas{max-width:100%!important}
 </div>
 
 <div class="snap-bar no-print">
-  <span>Atualização:</span>
+  <label id="snap-label-el">Atualização:</label>
   <select id="sels" onchange="loadSnap(this.value)"><option value="">—</option></select>
   <span id="sinfo" style="font-size:11px;color:var(--sub)"></span>
   <span id="sdiff"></span>
@@ -335,6 +336,7 @@ canvas{max-width:100%!important}
   <div class="tab" onclick="goTab('por-ss')">Materiais por SS</div>
   <div class="tab" onclick="goTab('consolidado')">Consolidado</div>
   <div class="tab" onclick="goTab('fabricacao')">Fabricação</div>
+  <div class="tab" onclick="goTab('curva')">Curva S</div>
   <div class="tab" onclick="goTab('historico')">Histórico</div>
 </div>
 
@@ -342,15 +344,15 @@ canvas{max-width:100%!important}
   <div class="kpi-row no-print" id="kpis"></div>
   <div class="dash-grid no-print">
     <div class="dash-card" style="grid-column:span 2">
-      <h3>Status de Fornecimento — RCM Aplicação <span class="tag" id="chlbl"></span></h3>
+      <h3><span id="dash-status-title">Status de Fornecimento — RCM Aplicação</span> <span class="tag" id="chlbl"></span></h3>
       <div class="ch-h"><canvas id="chbar"></canvas></div>
     </div>
-    <div class="dash-card"><h3>Distribuição por Status</h3><div class="ch-sm"><canvas id="chdonut"></canvas></div></div>
-    <div class="dash-card"><h3>Itens por SS</h3><div class="ch-sm"><canvas id="chss"></canvas></div></div>
-    <div class="dash-card" style="grid-column:span 2"><h3>Percentual de Materiais por Registro</h3><div class="ch-h"><canvas id="chreg"></canvas></div></div>
-    <div class="dash-card"><h3>Resumo por Registro</h3><div id="reg-summary" style="max-height:260px;overflow-y:auto"></div></div>
-    <div class="dash-card" style="grid-column:span 2"><h3>Status das SS — Relatorio SANC <span style="font-size:9px;background:#e0f2fe;color:#0369a1;border-radius:4px;padding:1px 6px;font-weight:600">9 SS</span></h3><div class="ch-sm"><canvas id="chss-status"></canvas></div><div id="sanc-list" style="margin-top:10px;max-height:150px;overflow-y:auto"></div></div>
-    <div class="dash-card" style="grid-column:span 2"><h3>100% Recebido — SS e Registros Concluidos</h3><div id="full100" style="display:grid;grid-template-columns:1fr 1fr;gap:16px"></div></div>
+    <div class="dash-card"><h3 id="dash-dist-title">Distribuição por Status</h3><div class="ch-sm"><canvas id="chdonut"></canvas></div></div>
+    <div class="dash-card"><h3 id="dash-por-ss-title">Itens por SS</h3><div class="ch-sm"><canvas id="chss"></canvas></div></div>
+    <div class="dash-card" style="grid-column:span 2"><h3 id="dash-reg-title">Percentual de Materiais por Registro</h3><div class="ch-h"><canvas id="chreg"></canvas></div></div>
+    <div class="dash-card"><h3 id="dash-resumo-reg-title">Resumo por Registro</h3><div id="reg-summary" style="max-height:260px;overflow-y:auto"></div></div>
+    <div class="dash-card" style="grid-column:span 2"><h3><span id="dash-sanc-title">Status das SS — Relatorio SANC</span> <span style="font-size:9px;background:#e0f2fe;color:#0369a1;border-radius:4px;padding:1px 6px;font-weight:600">9 SS</span></span></h3><div class="ch-sm"><canvas id="chss-status"></canvas></div><div id="sanc-list" style="margin-top:10px;max-height:150px;overflow-y:auto"></div></div>
+    <div class="dash-card" style="grid-column:span 2"><h3 id="dash-100-title">100% Recebido — SS e Registros Concluídos</h3><div id="full100" style="display:grid;grid-template-columns:1fr 1fr;gap:16px"></div></div>
   </div>
 </div>
 
@@ -393,21 +395,21 @@ canvas{max-width:100%!important}
 <div class="panel" id="panel-fabricacao">
   <!-- KPI Bar -->
   <div style="display:flex;gap:10px;padding:14px 24px 0;flex-wrap:wrap">
-    <div class="fk" style="min-width:110px"><div class="n" id="fkq">36</div><div class="l">Qt. de TAGs</div></div>
-    <div class="fk" style="min-width:130px"><div class="n" id="fkp" style="font-size:16px">—</div><div class="l">Peso Total (kg)</div></div>
-    <div class="fk" style="min-width:130px"><div class="n" id="fka" style="font-size:16px">—</div><div class="l">Área Total m²</div></div>
-    <div class="fk" style="min-width:110px"><div class="n" id="fkc" style="color:#16a34a">—</div><div class="l">Concluídas</div></div>
-    <div class="fk" style="min-width:110px"><div class="n" id="fkem" style="color:#2563eb">—</div><div class="l">Em Andamento</div></div>
-    <div class="fk" style="min-width:110px"><div class="n" id="fkni" style="color:#dc2626">—</div><div class="l">Não Iniciadas</div></div>
+    <div class="fk" style="min-width:110px"><div class="n" id="fkq">36</div><div class="l" id="fkq-l">Qt. de TAGs</div></div>
+    <div class="fk" style="min-width:130px"><div class="n" id="fkp" style="font-size:16px">—</div><div class="l" id="fkp-l">Peso Total (kg)</div></div>
+    <div class="fk" style="min-width:130px"><div class="n" id="fka" style="font-size:16px">—</div><div class="l" id="fka-l">Área Total m²</div></div>
+    <div class="fk" style="min-width:110px"><div class="n" id="fkc" style="color:#16a34a">—</div><div class="l" id="fkc-l">Concluídas</div></div>
+    <div class="fk" style="min-width:110px"><div class="n" id="fkem" style="color:#2563eb">—</div><div class="l" id="fkem-l">Em Andamento</div></div>
+    <div class="fk" style="min-width:110px"><div class="n" id="fkni" style="color:#dc2626">—</div><div class="l" id="fkni-l">Não Iniciadas</div></div>
     <div class="fk" style="flex:1;min-width:140px">
       <div id="fkav" style="font-size:22px;font-weight:800;color:#d97706">—%</div>
-      <div class="l">Média de Avanço</div>
+      <div class="l" id="fkav-l">Média de Avanço</div>
       <div style="background:var(--border);border-radius:4px;height:6px;margin-top:6px">
         <div id="fkav-bar" style="height:100%;border-radius:4px;background:#d97706;width:0%;transition:width .6s"></div>
       </div>
     </div>
     <div class="fk" style="min-width:130px">
-      <div style="font-size:10px;font-weight:700;color:var(--sub);text-transform:uppercase;margin-bottom:6px">Filtros</div>
+      <div id="fab-filt-l" style="font-size:10px;font-weight:700;color:var(--sub);text-transform:uppercase;margin-bottom:6px">Filtros</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <select id="fabss" onchange="renderFab()" style="font-size:10px;padding:3px 6px;border-radius:5px;border:1px solid var(--border);background:var(--input-bg);color:var(--text)"><option value="">Todas SS</option></select>
         <select id="fabtipo" onchange="renderFab()" style="font-size:10px;padding:3px 6px;border-radius:5px;border:1px solid var(--border);background:var(--input-bg);color:var(--text)"><option value="">Todos Tipos</option></select>
@@ -443,11 +445,83 @@ canvas{max-width:100%!important}
       <div style="overflow-x:auto;max-height:340px;overflow-y:auto">
         <table class="tbl" id="fab-table">
           <thead><tr>
-            <th>Nº Interno</th><th>Número Detalhamento</th><th>Tipo</th>
-            <th>Diâmetro</th><th>Avanço</th><th>Status Exe.</th>
-            <th>Status</th><th>Ensaios/Insp.</th><th>Sisfab</th><th>Peso (kg)</th>
+            <th data-i18n="fab-th-interno">Nº Interno</th><th data-i18n="fab-th-det">Número Detalhamento</th><th data-i18n="fab-th-tipo">Tipo</th>
+            <th data-i18n="fab-th-diam">Diâmetro</th><th data-i18n="fab-th-av">Avanço</th><th data-i18n="fab-th-stexe">Status Exe.</th>
+            <th data-i18n="fab-th-st">Status</th><th data-i18n="fab-th-ens">Ensaios/Insp.</th><th data-i18n="fab-th-sis">Sisfab</th><th data-i18n="fab-th-peso">Peso (kg)</th>
           </tr></thead>
           <tbody id="fab-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="panel" id="panel-curva">
+  <!-- KPIs topo -->
+  <div style="display:flex;gap:10px;padding:14px 24px 0;flex-wrap:wrap">
+    <div class="fk" style="flex:1;min-width:140px">
+      <div class="n" style="color:#16a34a" id="cv-rec">210</div>
+      <div class="l" id="cv-kpi-rec-l">Itens Recebidos</div>
+    </div>
+    <div class="fk" style="flex:1;min-width:140px">
+      <div class="n" style="color:#004b99" id="cv-pct">74,5%</div>
+      <div class="l" id="cv-kpi-pct-l">% Realizado</div>
+    </div>
+    <div class="fk" style="flex:1;min-width:140px">
+      <div class="n" style="color:#dc2626" id="cv-pend">—</div>
+      <div class="l" id="cv-kpi-pend-l">Itens Pendentes</div>
+    </div>
+    <div class="fk" style="flex:1;min-width:140px">
+      <div class="n" style="color:#7c3aed" id="cv-desvio">—</div>
+      <div class="l" id="cv-kpi-desv-l">Desvio Previsto vs Real</div>
+    </div>
+    <div class="fk" style="flex:1;min-width:160px">
+      <div class="n" style="color:#d97706;font-size:14px" id="cv-ult">—</div>
+      <div class="l" id="cv-kpi-ult-l">Último Recebimento</div>
+    </div>
+  </div>
+
+  <!-- Gráfico principal Curva S -->
+  <div style="padding:12px 24px 0">
+    <div class="fb" style="margin:0">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+        <div>
+          <h3 id="cv-title-el" style="margin:0">Curva S — Recebimento de Materiais</h3>
+          <p id="cv-sub-el" style="font-size:10px;color:var(--sub);margin-top:2px">Percentual acumulado de itens recebidos ao longo do tempo</p>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <label style="display:flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600;cursor:pointer">
+            <input type="checkbox" id="cv-show-real" checked onchange="renderCurva()">
+            <span id="cv-lbl-real" style="color:#16a34a">Realizado</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600;cursor:pointer">
+            <input type="checkbox" id="cv-show-prev" checked onchange="renderCurva()">
+            <span id="cv-lbl-prev" style="color:#004b99">Previsto</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600;cursor:pointer">
+            <input type="checkbox" id="cv-show-nec" checked onchange="renderCurva()">
+            <span id="cv-lbl-nec" style="color:#d97706">Necessidade</span>
+          </label>
+        </div>
+      </div>
+      <div style="position:relative;height:380px"><canvas id="ch-curva"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Linha 2: Recebimentos por mês (barras) + Tabela de pontos -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px 24px 24px">
+    <div class="fb" style="margin:0">
+      <h3 id="cv-mensal-title">Recebimentos por Mês</h3>
+      <div style="position:relative;height:220px"><canvas id="ch-mensal"></canvas></div>
+    </div>
+    <div class="fb" style="margin:0;padding:0;overflow:hidden">
+      <div style="padding:12px 16px 8px"><h3 id="cv-marcos-title">Marcos de Recebimento</h3></div>
+      <div style="max-height:240px;overflow-y:auto">
+        <table class="tbl">
+          <thead><tr>
+            <th data-i18n="cv-th-data">Data</th><th data-i18n="cv-th-itens">Itens</th><th data-i18n="cv-th-acum">Acumulado</th><th data-i18n="cv-th-preal">% Real</th><th data-i18n="cv-th-pnec">% Nec.</th><th data-i18n="cv-th-desv">Desvio</th>
+          </tr></thead>
+          <tbody id="cv-tabela"></tbody>
         </table>
       </div>
     </div>
@@ -457,8 +531,8 @@ canvas{max-width:100%!important}
 <div class="panel" id="panel-historico">
   <div style="padding:18px 24px 24px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-      <div><h2 style="font-size:14px;font-weight:700;color:var(--text)">Historico de Snapshots</h2>
-      <p style="font-size:11px;color:var(--sub);margin-top:3px">Cada importacao gera um snapshot com data e hora.</p></div>
+      <div><h2 id="hist-title-el" style="font-size:14px;font-weight:700;color:var(--text)">Histórico de Snapshots</h2>
+      <p id="hist-sub-el" style="font-size:11px;color:var(--sub);margin-top:3px">Cada importação gera um snapshot com data e hora.</p></div>
       <button class="btn btn-import" onclick="openImport()">Nova Importacao</button>
     </div>
     <div class="sm" id="snapmgr"></div>
@@ -501,7 +575,7 @@ canvas{max-width:100%!important}
 
 <div class="pm" id="mpwd" style="display:none">
   <div class="pb">
-    <div class="ph"><h2>Trocar Senha</h2><button onclick="closePwd()">X</button></div>
+    <div class="ph"><h2 id="pwd-title-h2">Trocar Senha</h2><button onclick="closePwd()">X</button></div>
     <div class="pd">
       <div class="pe" id="perr"></div><div class="po" id="pok"></div>
       <div class="pf3"><label>Senha Atual</label><input type="password" id="pa"></div>
@@ -515,7 +589,7 @@ canvas{max-width:100%!important}
 
 <div class="mb" id="museres" style="display:none">
   <div class="md" style="width:520px">
-    <h2>Gerenciar Usuarios</h2>
+    <h2 id="usr-title-h2">Gerenciar Usuários</h2>
     <p>Adicione novos usuarios com login e senha para acessar o dashboard. Usuarios criados aqui ficam salvos neste navegador.</p>
     <div class="pe" id="uerr"></div><div class="po" id="uok"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px">
@@ -555,6 +629,7 @@ var USERS = [
 ];
 
 var SANC = {"SS-1097/2026":{"status":"Em Andamento","fase":"4. EXECUÇÃO DE SERVIÇOS TÉCNICOS","tipo":"1.A14 - DISPONIBILIDADE DE EQUIPAMENTOS","titulo":"Habitáculo - Alterar a elipse do tanque de lastro 7 de boreste (WB 7S)","periodo_ini":"19/06/2026","periodo_fim":"16/11/2026","prioridade":""},"SS-133/2025":{"status":"Em Andamento","fase":"1. GESTÃO DE CONTRATO E CANTEIRO","tipo":"1.A 2 - 20 - COORDENAÇÃO DE PROJETO","titulo":"SERVIÇOS DE COORDENAÇÃO - IMPLEMENTAÇÃO DE GMs E SMPs NO PROJETO P-66","periodo_ini":"13/08/2025","periodo_fim":"06/11/2026","prioridade":"Alta Complexidade"},"SS-472/2025":{"status":"Em Andamento","fase":"4. EXECUÇÃO DE SERVIÇOS TÉCNICOS","tipo":"1.A 4 até 1.A15 - SERVIÇOS TÉCNICOS","titulo":"Alterar a elipse do tanque de lastro 7 de boreste (WB 7S)","periodo_ini":"19/09/2025","periodo_fim":"20/12/2026","prioridade":""},"SS-474/2025":{"status":"Cancelada","fase":"2. PLANEJAMENTO","tipo":"1.A 3 - PLANEJAMENTO","titulo":"Prover meio de acesso adequado e seguro ao HOOD dos Turbos compressores no M-01","periodo_ini":"01/09/2025","periodo_fim":"30/09/2026","prioridade":"Média"},"SS-475/2025":{"status":"Cancelada","fase":"4. EXECUÇÃO DE SERVIÇOS TÉCNICOS","tipo":"1.A 3 - PLANEJAMENTO","titulo":"Readequação dos batentes das baleeiras","periodo_ini":"01/09/2025","periodo_fim":"30/09/2026","prioridade":"Média"},"SS-476/2025":{"status":"Em Revisão","fase":"3. SUPRIMENTO","tipo":"1.A 5 - BENEFICIAMENTO DE ESTRUTURA E TUBULAÇÃO","titulo":"Instalação de filtro T na entrada de água do mar dos GG-5241501ab","periodo_ini":"19/09/2025","periodo_fim":"20/12/2026","prioridade":""},"SS-876/2025":{"status":"Cancelada","fase":"4. EXECUÇÃO DE SERVIÇOS TÉCNICOS","tipo":"1.A 3 - PLANEJAMENTO","titulo":"Adequação dos pontos de coleta de amostras do sistema de tratamento de esgoto","periodo_ini":"01/10/2025","periodo_fim":"30/09/2026","prioridade":"Média"},"SS-921/2026":{"status":"Em Revisão","fase":"4. EXECUÇÃO DE SERVIÇOS TÉCNICOS","tipo":"1.A 4 até 1.A15 - SERVIÇOS TÉCNICOS","titulo":"Ajustes do sistema de drenagem dos headers de flare","periodo_ini":"11/05/2026","periodo_fim":"20/10/2026","prioridade":""},"SS-942/2025":{"status":"Em Revisão","fase":"3. SUPRIMENTO","tipo":"1.A 5 - BENEFICIAMENTO DE ESTRUTURA E TUBULAÇÃO","titulo":"Substituição dos instrumentos de intertravamento de nível","periodo_ini":"13/10/2025","periodo_fim":"20/12/2026","prioridade":""}};
+var CURVAS = {"total": 282, "realizado": [{"x": "2001-01-01", "y": 1.06, "n": 3}, {"x": "2025-07-28", "y": 1.42, "n": 4}, {"x": "2025-10-31", "y": 1.77, "n": 5}, {"x": "2025-11-13", "y": 2.13, "n": 6}, {"x": "2025-12-03", "y": 9.57, "n": 27}, {"x": "2025-12-11", "y": 11.35, "n": 32}, {"x": "2025-12-29", "y": 12.06, "n": 34}, {"x": "2026-02-19", "y": 12.41, "n": 35}, {"x": "2026-02-24", "y": 12.77, "n": 36}, {"x": "2026-02-27", "y": 13.12, "n": 37}, {"x": "2026-03-02", "y": 13.83, "n": 39}, {"x": "2026-03-03", "y": 14.54, "n": 41}, {"x": "2026-03-09", "y": 30.14, "n": 85}, {"x": "2026-03-10", "y": 30.85, "n": 87}, {"x": "2026-03-11", "y": 33.33, "n": 94}, {"x": "2026-03-12", "y": 38.65, "n": 109}, {"x": "2026-03-13", "y": 43.62, "n": 123}, {"x": "2026-03-16", "y": 48.23, "n": 136}, {"x": "2026-03-18", "y": 50.0, "n": 141}, {"x": "2026-03-19", "y": 50.35, "n": 142}, {"x": "2026-03-20", "y": 51.06, "n": 144}, {"x": "2026-03-23", "y": 51.42, "n": 145}, {"x": "2026-03-24", "y": 51.77, "n": 146}, {"x": "2026-03-27", "y": 53.9, "n": 152}, {"x": "2026-04-01", "y": 54.26, "n": 153}, {"x": "2026-04-02", "y": 54.96, "n": 155}, {"x": "2026-04-09", "y": 57.45, "n": 162}, {"x": "2026-04-15", "y": 57.8, "n": 163}, {"x": "2026-04-16", "y": 59.57, "n": 168}, {"x": "2026-04-22", "y": 59.93, "n": 169}, {"x": "2026-04-24", "y": 61.35, "n": 173}, {"x": "2026-04-29", "y": 61.7, "n": 174}, {"x": "2026-05-05", "y": 62.41, "n": 176}, {"x": "2026-05-06", "y": 62.77, "n": 177}, {"x": "2026-05-08", "y": 63.12, "n": 178}, {"x": "2026-05-13", "y": 64.18, "n": 181}, {"x": "2026-05-25", "y": 64.54, "n": 182}, {"x": "2026-05-29", "y": 65.96, "n": 186}, {"x": "2026-06-02", "y": 67.73, "n": 191}, {"x": "2026-06-03", "y": 68.09, "n": 192}, {"x": "2026-06-11", "y": 68.44, "n": 193}, {"x": "2026-06-19", "y": 69.15, "n": 195}, {"x": "2026-06-23", "y": 69.5, "n": 196}, {"x": "2026-06-25", "y": 70.92, "n": 200}, {"x": "2026-06-30", "y": 71.99, "n": 203}, {"x": "2026-07-01", "y": 73.05, "n": 206}, {"x": "2026-07-02", "y": 73.4, "n": 207}, {"x": "2026-07-03", "y": 74.47, "n": 210}], "previsto": [{"x": "2026-02-27", "y": 0.35, "n": 1}, {"x": "2026-03-08", "y": 1.06, "n": 3}, {"x": "2026-03-09", "y": 4.96, "n": 14}, {"x": "2026-03-10", "y": 7.8, "n": 22}, {"x": "2026-03-11", "y": 21.63, "n": 61}, {"x": "2026-03-13", "y": 25.89, "n": 73}, {"x": "2026-03-14", "y": 32.62, "n": 92}, {"x": "2026-03-19", "y": 34.04, "n": 96}, {"x": "2026-03-24", "y": 34.75, "n": 98}, {"x": "2026-04-30", "y": 35.11, "n": 99}, {"x": "2026-05-25", "y": 35.46, "n": 100}, {"x": "2026-05-30", "y": 35.82, "n": 101}, {"x": "2026-05-31", "y": 36.52, "n": 103}, {"x": "2026-06-02", "y": 37.59, "n": 106}, {"x": "2026-06-03", "y": 37.94, "n": 107}, {"x": "2026-06-06", "y": 38.65, "n": 109}, {"x": "2026-06-10", "y": 39.01, "n": 110}, {"x": "2026-06-21", "y": 39.36, "n": 111}, {"x": "2026-07-02", "y": 40.07, "n": 113}, {"x": "2026-07-03", "y": 40.43, "n": 114}, {"x": "2026-07-04", "y": 41.13, "n": 116}, {"x": "2026-07-05", "y": 41.49, "n": 117}, {"x": "2026-07-08", "y": 42.2, "n": 119}, {"x": "2026-07-09", "y": 42.91, "n": 121}, {"x": "2026-07-11", "y": 43.62, "n": 123}, {"x": "2026-07-19", "y": 43.97, "n": 124}, {"x": "2026-08-04", "y": 44.68, "n": 126}], "necessidade": [{"x": "2025-03-25", "y": 0.35, "n": 1}, {"x": "2025-12-04", "y": 7.45, "n": 21}, {"x": "2026-02-12", "y": 8.16, "n": 23}, {"x": "2026-02-17", "y": 11.7, "n": 33}, {"x": "2026-02-23", "y": 47.52, "n": 134}, {"x": "2026-02-24", "y": 47.87, "n": 135}, {"x": "2026-03-06", "y": 48.23, "n": 136}, {"x": "2026-03-11", "y": 50.0, "n": 141}, {"x": "2026-03-13", "y": 50.35, "n": 142}, {"x": "2026-03-25", "y": 54.61, "n": 154}, {"x": "2026-03-27", "y": 56.38, "n": 159}, {"x": "2026-03-30", "y": 56.74, "n": 160}, {"x": "2026-04-01", "y": 57.09, "n": 161}, {"x": "2026-04-02", "y": 57.45, "n": 162}, {"x": "2026-04-09", "y": 57.8, "n": 163}, {"x": "2026-04-10", "y": 61.35, "n": 173}, {"x": "2026-04-13", "y": 71.99, "n": 203}, {"x": "2026-04-14", "y": 75.53, "n": 213}, {"x": "2026-04-20", "y": 76.95, "n": 217}, {"x": "2026-04-22", "y": 78.01, "n": 220}, {"x": "2026-04-28", "y": 78.37, "n": 221}, {"x": "2026-04-30", "y": 79.43, "n": 224}, {"x": "2026-05-05", "y": 80.5, "n": 227}, {"x": "2026-05-07", "y": 80.85, "n": 228}, {"x": "2026-05-09", "y": 81.21, "n": 229}, {"x": "2026-05-12", "y": 81.56, "n": 230}, {"x": "2026-05-13", "y": 82.62, "n": 233}, {"x": "2026-05-19", "y": 82.98, "n": 234}, {"x": "2026-05-21", "y": 83.33, "n": 235}, {"x": "2026-05-26", "y": 84.4, "n": 238}, {"x": "2026-05-28", "y": 84.75, "n": 239}, {"x": "2026-05-30", "y": 85.46, "n": 241}, {"x": "2026-06-09", "y": 87.23, "n": 246}, {"x": "2026-06-10", "y": 90.43, "n": 255}, {"x": "2026-06-11", "y": 91.13, "n": 257}, {"x": "2026-06-12", "y": 92.91, "n": 262}, {"x": "2026-06-16", "y": 94.68, "n": 267}, {"x": "2026-06-19", "y": 95.04, "n": 268}, {"x": "2026-06-22", "y": 95.39, "n": 269}, {"x": "2026-06-24", "y": 95.74, "n": 270}, {"x": "2026-06-29", "y": 96.81, "n": 273}, {"x": "2026-07-01", "y": 97.16, "n": 274}, {"x": "2026-07-02", "y": 98.58, "n": 278}, {"x": "2026-07-15", "y": 99.65, "n": 281}, {"x": "2026-07-23", "y": 100.0, "n": 282}]};
 var SNAPS = [];
 var CUR = {};
 var PREV = {};
@@ -1354,7 +1429,7 @@ function rirB(m){
   return '<span class="' + (lib?"rl":rep?"rr":"re") + '" title="RIR ' + (m.rir_num||"—") + '">' + (lib?"OK":rep?"REP":"Enc") + ' ' + sit.replace("RECEBIDO ","") + '</span>';
 }
 
-var TABS = ["dashboard","por-ss","consolidado","fabricacao","historico"];
+var TABS = ["dashboard","por-ss","consolidado","fabricacao","curva","historico"];
 function goTab(id){
   var tabs = document.querySelectorAll(".tab");
   for(var i=0;i<tabs.length;i++){ tabs[i].classList.toggle("active", TABS[i]===id); }
@@ -1365,6 +1440,7 @@ function goTab(id){
   if(id==="consolidado") applyFC();
   if(id==="fabricacao") renderFab();
   if(id==="historico") renderSnapMgr();
+  if(id==="curva") renderCurva();
 }
 
 function renderRegSummary(mats){
@@ -2041,35 +2117,305 @@ function doPrint(){
 var LANG = 'pt';
 var I18N = {
   pt:{
-    'dashboard':'Dashboard','por-ss':'Materiais por SS','consolidado':'Consolidado',
-    'fabricacao':'Fabricação','historico':'Histórico',
-    'importar':'Importar Excel','solicitar':'Solicitar Excel','limpar':'Limpar',
-    'pdf':'PDF','gerenciar':'Gerenciar Usuarios','sincronizar':'Sincronizar',
-    'status':'Status de Fornecimento','prazo':'Prazo Receb.','nec':'Data Nec.',
-    'fornecimento':'Fornecimento','categoria':'Categoria','escopo':'Escopo',
-    'fornecedor':'Fornecedor','recebido':'Recebido Em','tipo':'Tipo'
+    // Tabs
+    'tab-dashboard':'Dashboard','tab-por-ss':'Materiais por SS',
+    'tab-consolidado':'Consolidado','tab-fabricacao':'Fabricação',
+    'tab-curva':'Curva S','tab-historico':'Histórico',
+    // Topbar botões
+    'btn-import':'Importar Excel','btn-export':'Solicitar Excel',
+    'btn-clear':'Limpar','btn-pdf':'PDF',
+    'btn-users':'Gerenciar Usuários','btn-sync':'Sincronizar',
+    // Snap bar
+    'snap-label':'Atualização:',
+    // Filtros comuns
+    'f-ss':'SS:','f-status':'Status:','f-tipo':'Tipo:','f-escopo':'Escopo:',
+    'f-categoria':'Categoria:','f-registro':'Registro:','f-buscar':'Buscar:',
+    'f-todas':'Todas','f-todos':'Todos','f-todas-cat':'Todas',
+    'f-montagem':'Montagem','f-fabricacao-tp':'Fabricação',
+    'f-contratada':'Contratada','f-cliente':'Cliente',
+    // Tabela headers comuns
+    'th-item':'Item LM','th-registro':'Registro','th-codigo':'Código',
+    'th-descricao':'Descrição','th-unid':'Unid.','th-qtd-lm':'Qtd.LM',
+    'th-qtd-atend':'Qtd.Atend.','th-status':'Status','th-tipo':'Tipo',
+    'th-fornecimento':'Fornecimento','th-escopo':'Escopo','th-categoria':'Categoria',
+    'th-oc':'OC Nº','th-nf':'NF','th-fornecedor':'Fornecedor',
+    'th-recebido':'Recebido Em','th-rmsc':'RM/SC·RIR',
+    'th-prazo':'Prazo Receb.','th-nec':'Data Nec.',
+    // Dashboard
+    'kpi-total':'Total','kpi-recebido':'Recebido','kpi-integrado':'Integrado',
+    'kpi-parcial':'Atend. Parcial','kpi-cotacao':'Em Cotação',
+    'kpi-aguardando':'Ag. Recebimento','kpi-cancelado':'Cancelado',
+    'dash-status':'Status de Fornecimento — RCM Aplicação',
+    'dash-dist':'Distribuição por Status','dash-por-ss':'Itens por SS',
+    'dash-reg':'Percentual de Materiais por Registro',
+    'dash-resumo-reg':'Resumo por Registro',
+    'dash-sanc':'Status das SS — Relatorio SANC',
+    'dash-100':'100% Recebido — SS e Registros Concluídos',
+    'dash-ss-col':'Solicitações de Serviço','dash-reg-col':'Registros',
+    // Fabricação
+    'fab-qtd':'Qt. de TAGs','fab-peso':'Peso Total (kg)','fab-area':'Área Total m²',
+    'fab-conc':'Concluídas','fab-em':'Em Andamento','fab-ni':'Não Iniciadas',
+    'fab-media':'Média de Avanço','fab-filtros':'Filtros',
+    'fab-todas-ss':'Todas SS','fab-todos-tipos':'Todos Tipos',
+    'fab-avanco':'Avanço da SS por TAG (%)','fab-por-ss':'Por SS',
+    'fab-portfolio':'Portfólio','fab-tipo':'Por Tipo',
+    'fab-status':'Status de Execução','fab-diam':'Peso por Diâmetro (kg)',
+    'fab-det':'Detalhamento por TAG',
+    'fab-th-interno':'Nº Interno','fab-th-det':'Número Detalhamento',
+    'fab-th-tipo':'Tipo','fab-th-diam':'Diâmetro','fab-th-av':'Avanço',
+    'fab-th-stexe':'Status Exe.','fab-th-st':'Status',
+    'fab-th-ens':'Ensaios/Insp.','fab-th-sis':'Sisfab','fab-th-peso':'Peso (kg)',
+    // Curva S
+    'cv-title':'Curva S — Recebimento de Materiais',
+    'cv-sub':'Percentual acumulado de itens recebidos ao longo do tempo',
+    'cv-real':'Realizado','cv-prev':'Previsto','cv-nec':'Necessidade',
+    'cv-kpi-rec':'Itens Recebidos','cv-kpi-pct':'% Realizado',
+    'cv-kpi-pend':'Itens Pendentes','cv-kpi-desv':'Desvio Previsto vs Real',
+    'cv-kpi-ult':'Último Recebimento','cv-mensal':'Recebimentos por Mês',
+    'cv-marcos':'Marcos de Recebimento',
+    'cv-th-data':'Data','cv-th-itens':'Itens','cv-th-acum':'Acumulado',
+    'cv-th-preal':'% Real','cv-th-pnec':'% Nec.','cv-th-desv':'Desvio',
+    // Histórico
+    'hist-title':'Histórico de Snapshots',
+    'hist-sub':'Cada importação gera um snapshot com data e hora.',
+    'hist-nova':'Nova Importação',
+    // Modal import
+    'imp-title':'Importar Atualização',
+    'imp-sub':'Selecione o arquivo .xlsx exportado do RCM.',
+    'imp-click':'Clique para selecionar ou arraste aqui',
+    'imp-fmt':'Formatos: .xlsx, .xls','imp-cancel':'Cancelar',
+    // Modal export
+    'exp-title':'Solicitar Arquivo Excel',
+    'exp-sub':'Escolha quais dados deseja exportar.',
+    'exp-all':'Todos os materiais','exp-all-sub':'Exporta a tabela consolidada completa',
+    'exp-filt':'Somente itens filtrados','exp-filt-sub':'Usa os filtros ativos na aba Consolidado',
+    'exp-fab':'Dados de Fabricação (TAGs)','exp-fab-sub':'Exporta o progresso das TAGs de fabricação',
+    'exp-cancel':'Cancelar','exp-gerar':'Gerar Excel',
+    // Modal senha
+    'pwd-title':'Trocar Senha','pwd-atual':'Senha Atual',
+    'pwd-nova':'Nova Senha (mín. 6 caracteres)','pwd-conf':'Confirmar Nova Senha',
+    'pwd-salvar':'Salvar Nova Senha','pwd-sair':'Sair do Sistema',
+    // Modal usuarios
+    'usr-title':'Gerenciar Usuários',
+    'usr-sub':'Adicione novos usuários com login e senha.',
+    'usr-nome':'Nome de exibição','usr-login':'Login (usuário)',
+    'usr-senha':'Senha','usr-nivel':'Nível de acesso',
+    'usr-viewer':'Visualizador (somente leitura)','usr-admin':'Administrador (acesso total)',
+    'usr-add':'Adicionar Usuário','usr-lista':'Usuários com acesso','usr-fechar':'Fechar',
+    // Login
+    'login-h2':'Controle de Suprimentos','login-p':'SS — P-66 · RCM Aplicação',
+    'login-user':'Usuário','login-pwd':'Senha','login-btn':'Entrar',
+    'login-foot':'Estrutural Engenharia © 2026 — Acesso restrito'
   },
   en:{
-    'dashboard':'Dashboard','por-ss':'Materials by WO','consolidado':'Consolidated',
-    'fabricacao':'Fabrication','historico':'History',
-    'importar':'Import Excel','solicitar':'Request Excel','limpar':'Clear',
-    'pdf':'PDF','gerenciar':'Manage Users','sincronizar':'Sync',
-    'status':'Supply Status','prazo':'Exp. Delivery','nec':'Need Date',
-    'fornecimento':'Supply','categoria':'Category','escopo':'Scope',
-    'fornecedor':'Supplier','recebido':'Received At','tipo':'Type'
+    'tab-dashboard':'Dashboard','tab-por-ss':'Materials by WO',
+    'tab-consolidado':'Consolidated','tab-fabricacao':'Fabrication',
+    'tab-curva':'S-Curve','tab-historico':'History',
+    'btn-import':'Import Excel','btn-export':'Request Excel',
+    'btn-clear':'Clear','btn-pdf':'PDF',
+    'btn-users':'Manage Users','btn-sync':'Sync',
+    'snap-label':'Last update:',
+    'f-ss':'WO:','f-status':'Status:','f-tipo':'Type:','f-escopo':'Scope:',
+    'f-categoria':'Category:','f-registro':'Record:','f-buscar':'Search:',
+    'f-todas':'All','f-todos':'All','f-todas-cat':'All',
+    'f-montagem':'Assembly','f-fabricacao-tp':'Fabrication',
+    'f-contratada':'Contractor','f-cliente':'Client',
+    'th-item':'LM Item','th-registro':'Record','th-codigo':'Code',
+    'th-descricao':'Description','th-unid':'Unit','th-qtd-lm':'LM Qty',
+    'th-qtd-atend':'Att. Qty','th-status':'Status','th-tipo':'Type',
+    'th-fornecimento':'Supply','th-escopo':'Scope','th-categoria':'Category',
+    'th-oc':'PO No','th-nf':'Invoice','th-fornecedor':'Supplier',
+    'th-recebido':'Received At','th-rmsc':'MR/SC·RIR',
+    'th-prazo':'Exp. Delivery','th-nec':'Need Date',
+    'kpi-total':'Total','kpi-recebido':'Received','kpi-integrado':'Integrated',
+    'kpi-parcial':'Partial Att.','kpi-cotacao':'In Quotation',
+    'kpi-aguardando':'Awaiting Receipt','kpi-cancelado':'Cancelled',
+    'dash-status':'Supply Status — RCM Application',
+    'dash-dist':'Status Distribution','dash-por-ss':'Items by WO',
+    'dash-reg':'Material % by Record',
+    'dash-resumo-reg':'Record Summary',
+    'dash-sanc':'WO Status — SANC Report',
+    'dash-100':'100% Received — Completed WOs & Records',
+    'dash-ss-col':'Work Orders','dash-reg-col':'Records',
+    'fab-qtd':'No. of TAGs','fab-peso':'Total Weight (kg)','fab-area':'Total Area m²',
+    'fab-conc':'Completed','fab-em':'In Progress','fab-ni':'Not Started',
+    'fab-media':'Avg. Progress','fab-filtros':'Filters',
+    'fab-todas-ss':'All WOs','fab-todos-tipos':'All Types',
+    'fab-avanco':'SS Progress by TAG (%)','fab-por-ss':'By WO',
+    'fab-portfolio':'Portfolio','fab-tipo':'By Type',
+    'fab-status':'Execution Status','fab-diam':'Weight by Diameter (kg)',
+    'fab-det':'TAG Detail',
+    'fab-th-interno':'Int. No','fab-th-det':'Detail Number',
+    'fab-th-tipo':'Type','fab-th-diam':'Diameter','fab-th-av':'Progress',
+    'fab-th-stexe':'Exe. Status','fab-th-st':'Status',
+    'fab-th-ens':'Tests/Insp.','fab-th-sis':'Sisfab','fab-th-peso':'Weight (kg)',
+    'cv-title':'S-Curve — Material Receipt',
+    'cv-sub':'Cumulative percentage of items received over time',
+    'cv-real':'Actual','cv-prev':'Planned','cv-nec':'Required',
+    'cv-kpi-rec':'Items Received','cv-kpi-pct':'% Actual',
+    'cv-kpi-pend':'Pending Items','cv-kpi-desv':'Planned vs Actual Deviation',
+    'cv-kpi-ult':'Last Receipt','cv-mensal':'Monthly Receipts',
+    'cv-marcos':'Receipt Milestones',
+    'cv-th-data':'Date','cv-th-itens':'Items','cv-th-acum':'Cumulative',
+    'cv-th-preal':'% Actual','cv-th-pnec':'% Req.','cv-th-desv':'Deviation',
+    'hist-title':'Snapshot History',
+    'hist-sub':'Each import creates a snapshot with date and time.',
+    'hist-nova':'New Import',
+    'imp-title':'Import Update',
+    'imp-sub':'Select the .xlsx file exported from RCM.',
+    'imp-click':'Click to select or drag here',
+    'imp-fmt':'Formats: .xlsx, .xls','imp-cancel':'Cancel',
+    'exp-title':'Request Excel File',
+    'exp-sub':'Choose which data to export.',
+    'exp-all':'All materials','exp-all-sub':'Exports the full consolidated table',
+    'exp-filt':'Filtered items only','exp-filt-sub':'Uses active filters in Consolidated tab',
+    'exp-fab':'Fabrication Data (TAGs)','exp-fab-sub':'Exports TAG fabrication progress',
+    'exp-cancel':'Cancel','exp-gerar':'Generate Excel',
+    'pwd-title':'Change Password','pwd-atual':'Current Password',
+    'pwd-nova':'New Password (min. 6 chars)','pwd-conf':'Confirm New Password',
+    'pwd-salvar':'Save New Password','pwd-sair':'Log Out',
+    'usr-title':'Manage Users',
+    'usr-sub':'Add new users with login and password.',
+    'usr-nome':'Display name','usr-login':'Login (username)',
+    'usr-senha':'Password','usr-nivel':'Access level',
+    'usr-viewer':'Viewer (read-only)','usr-admin':'Administrator (full access)',
+    'usr-add':'Add User','usr-lista':'Users with access','usr-fechar':'Close',
+    'login-h2':'Supply Control','login-p':'WO — P-66 · RCM Application',
+    'login-user':'Username','login-pwd':'Password','login-btn':'Sign In',
+    'login-foot':'Estrutural Engenharia © 2026 — Restricted access'
   }
 };
+
+function t(key){ return (I18N[LANG] && I18N[LANG][key]) ? I18N[LANG][key] : (I18N['pt'][key]||key); }
+
 function setLang(l){
   LANG = l;
+  localStorage.setItem('rcm_lang', l);
   document.getElementById('flag-pt').classList.toggle('active', l==='pt');
   document.getElementById('flag-en').classList.toggle('active', l==='en');
-  localStorage.setItem('rcm_lang', l);
+
+  // Tabs
+  var tabKeys = ['tab-dashboard','tab-por-ss','tab-consolidado','tab-fabricacao','tab-curva','tab-historico'];
   var tabs = document.querySelectorAll('.tab');
-  var keys = ['dashboard','por-ss','consolidado','fabricacao','historico'];
-  for(var i=0;i<tabs.length;i++) tabs[i].textContent = I18N[l][keys[i]];
-  var imp = document.getElementById('btn-imp');
-  if(imp) imp.textContent = I18N[l]['importar'];
+  for(var i=0;i<tabs.length;i++){ tabs[i].textContent = t(tabKeys[i]); }
+
+  // Topbar botões
+  var btnImp = document.getElementById('btn-imp');
+  var btnExp = document.querySelectorAll('.btn-export')[0];
+  var btnClr = document.querySelector('.btn-ghost');
+  var btnUsr = document.getElementById('btn-users');
+  if(btnImp) btnImp.textContent = t('btn-import');
+  if(btnExp) btnExp.textContent = t('btn-export');
+  if(btnClr) btnClr.textContent = t('btn-clear');
+  if(btnUsr) btnUsr.textContent = t('btn-users');
+
+  // Snap bar label
+  var snapLbl = document.querySelector('.snap-bar label');
+  if(snapLbl) snapLbl.textContent = t('snap-label');
+
+  // Filtros - labels
+  var filterLabels = document.querySelectorAll('.ctrl label');
+  filterLabels.forEach(function(el){
+    var txt = el.textContent.trim().replace(':','');
+    var map = {'SS':'f-ss','Status':'f-status','WO':'f-ss','Tipo':'f-tipo','Type':'f-tipo',
+               'Escopo':'f-escopo','Scope':'f-escopo','Categoria':'f-categoria',
+               'Category':'f-categoria','Registro':'f-registro','Record':'f-registro',
+               'Buscar':'f-buscar','Search':'f-buscar'};
+    Object.keys(map).forEach(function(k){
+      if(txt === k) el.textContent = t(map[k]);
+    });
+  });
+
+  // Modais — títulos e labels
+  _setEl('imp-title', t('imp-title'));
+  _setEl('exp-title', t('exp-title'));
+  _setEl('pwd-title-h2', t('pwd-title'));
+  _setEl('usr-title-h2', t('usr-title'));
+
+  // Cabeçalhos das tabelas (por data-i18n)
+  var ths = document.querySelectorAll('[data-i18n]');
+  ths.forEach(function(el){ el.textContent = t(el.getAttribute('data-i18n')); });
+
+  // Dashboard cards
+  _setEl('dash-status-title', t('dash-status'));
+  _setEl('dash-dist-title', t('dash-dist'));
+  _setEl('dash-por-ss-title', t('dash-por-ss'));
+  _setEl('dash-reg-title', t('dash-reg'));
+  _setEl('dash-resumo-reg-title', t('dash-resumo-reg'));
+  _setEl('dash-sanc-title', t('dash-sanc'));
+  _setEl('dash-100-title', t('dash-100'));
+
+  // Fabricação
+  _setEl('fab-avanco-title', t('fab-avanco'));
+  _setEl('fab-por-ss-title', t('fab-por-ss'));
+  _setEl('fab-portfolio-title', t('fab-portfolio'));
+  _setEl('fab-tipo-title', t('fab-tipo'));
+  _setEl('fab-status-title', t('fab-status'));
+  _setEl('fab-diam-title', t('fab-diam'));
+  _setEl('fab-det-title', t('fab-det'));
+
+  // Curva S
+  _setEl('cv-title-el', t('cv-title'));
+  _setEl('cv-sub-el', t('cv-sub'));
+  _setEl('cv-kpi-rec-l', t('cv-kpi-rec'));
+  _setEl('cv-kpi-pct-l', t('cv-kpi-pct'));
+  _setEl('cv-kpi-pend-l', t('cv-kpi-pend'));
+  _setEl('cv-kpi-desv-l', t('cv-kpi-desv'));
+  _setEl('cv-kpi-ult-l', t('cv-kpi-ult'));
+  _setEl('cv-mensal-title', t('cv-mensal'));
+  _setEl('cv-marcos-title', t('cv-marcos'));
+
+  // Histórico
+  _setEl('hist-title-el', t('hist-title'));
+  _setEl('hist-sub-el', t('hist-sub'));
+
+  // KPI labels
+  var kpiLabels = document.querySelectorAll('.kpi .l');
+  var kpiMap = {
+    'Total':t('kpi-total'),'Recebido':t('kpi-recebido'),'Integrado':t('kpi-integrado'),
+    'Atend. Parcial':t('kpi-parcial'),'Em Cotacao':t('kpi-cotacao'),
+    'Ag. Recebimento':t('kpi-aguardando'),'Cancelado':t('kpi-cancelado'),
+    'Em Cotação':t('kpi-cotacao')
+  };
+  kpiLabels.forEach(function(el){
+    var txt = el.textContent.trim();
+    if(kpiMap[txt]) el.textContent = kpiMap[txt];
+  });
+
+  // Login
+  var lh2 = document.querySelector('.login-box h2');
+  var lp  = document.querySelector('.login-box p');
+  var lu  = document.querySelector('.lf label');
+  var lbtn = document.getElementById('lbtn');
+  if(lh2) lh2.textContent = t('login-h2');
+  if(lp)  lp.textContent  = t('login-p');
+  if(lbtn) lbtn.textContent = t('login-btn');
+  if(lu)  lu.textContent  = t('login-user');
+  var lfLabels = document.querySelectorAll('.lf label');
+  if(lfLabels[0]) lfLabels[0].textContent = t('login-user');
+  if(lfLabels[1]) lfLabels[1].textContent = t('login-pwd');
+  var loginFoot = document.querySelector('.login-foot');
+  if(loginFoot) loginFoot.textContent = t('login-foot');
+
+  // Re-renderizar charts com cores/labels corretos
+  if(typeof rebuildCharts === 'function' && Object.keys(CUR).length){ rebuildCharts(); }
+  if(typeof renderCurva === 'function' && document.getElementById('ch-curva')){ renderCurva(); }
+  _setEl('cv-lbl-real', t('cv-real'));
+  _setEl('cv-lbl-prev', t('cv-prev'));
+  _setEl('cv-lbl-nec', t('cv-nec'));
+  _setEl('snap-label-el', t('snap-label'));
+  _setEl('fkq-l', t('fab-qtd'));
+  _setEl('fkp-l', t('fab-peso'));
+  _setEl('fka-l', t('fab-area'));
+  _setEl('fkc-l', t('fab-conc'));
+  _setEl('fkem-l', t('fab-em'));
+  _setEl('fkni-l', t('fab-ni'));
+  _setEl('fkav-l', t('fab-media'));
+  _setEl('fab-filt-l', t('fab-filtros'));
 }
+
+function _setEl(id, txt){ var el=document.getElementById(id); if(el) el.textContent=txt; }
+
 function doSync(){
   var btn = document.getElementById('sync-btn');
   btn.classList.add('spin');
@@ -2080,6 +2426,193 @@ function doSync(){
     btn.classList.remove('spin');
   }, 800);
 }
+
+var cCurva = null;
+var cMensal = null;
+
+function renderCurva(){
+  var showReal = document.getElementById("cv-show-real").checked;
+  var showPrev = document.getElementById("cv-show-prev").checked;
+  var showNec  = document.getElementById("cv-show-nec").checked;
+  var tColor = chartTextColor();
+  var total  = CURVAS.total;
+
+  // KPIs
+  var lastReal = CURVAS.realizado.length ? CURVAS.realizado[CURVAS.realizado.length-1] : null;
+  var lastPrev = CURVAS.previsto.length  ? CURVAS.previsto[CURVAS.previsto.length-1]   : null;
+  if(lastReal){
+    document.getElementById("cv-rec").textContent  = lastReal.n;
+    document.getElementById("cv-pct").textContent  = lastReal.y.toFixed(1)+"%";
+    document.getElementById("cv-pend").textContent = (total - lastReal.n);
+    var desvio = lastPrev ? (lastReal.y - lastPrev.y).toFixed(1) : "—";
+    var dEl = document.getElementById("cv-desvio");
+    dEl.textContent = (desvio > 0 ? "+" : "") + desvio + "%";
+    dEl.style.color = desvio >= 0 ? "#16a34a" : "#dc2626";
+    // Formatar última data
+    var parts = lastReal.x.split("-");
+    document.getElementById("cv-ult").textContent = parts[2]+"/"+parts[1]+"/"+parts[0];
+  }
+
+  // ── Gráfico principal Curva S
+  if(cCurva){ cCurva.destroy(); cCurva=null; }
+
+  // Criar eixo X unificado (todas as datas das 3 séries)
+  var dateSet = {};
+  if(showReal) CURVAS.realizado.forEach(function(p){ dateSet[p.x]=true; });
+  if(showPrev) CURVAS.previsto.forEach(function(p){ dateSet[p.x]=true; });
+  if(showNec)  CURVAS.necessidade.forEach(function(p){ dateSet[p.x]=true; });
+  var allDates = Object.keys(dateSet).sort();
+
+  function toMap(arr){
+    var m = {};
+    arr.forEach(function(p){ m[p.x] = p; });
+    return m;
+  }
+  var rmReal = toMap(CURVAS.realizado);
+  var rmPrev = toMap(CURVAS.previsto);
+  var rmNec  = toMap(CURVAS.necessidade);
+
+  // Interpolar: preencher pontos intermediários com último valor conhecido
+  function fillSeries(map, dates){
+    var last = null;
+    return dates.map(function(d){
+      if(map[d]){ last = map[d]; return {x:d, y:map[d].y}; }
+      return last ? {x:d, y:last.y} : null;
+    }).filter(function(v){ return v!==null; });
+  }
+
+  var datasets = [];
+  if(showReal){
+    datasets.push({
+      label:"Realizado", data:fillSeries(rmReal, allDates),
+      borderColor:"#16a34a", backgroundColor:"rgba(22,163,74,.12)",
+      borderWidth:2.5, pointRadius:3, pointHoverRadius:6,
+      fill:true, tension:0.35, parsing:{xAxisKey:"x", yAxisKey:"y"}
+    });
+  }
+  if(showPrev){
+    datasets.push({
+      label:"Previsto", data:fillSeries(rmPrev, allDates),
+      borderColor:"#004b99", backgroundColor:"rgba(0,75,153,.07)",
+      borderWidth:2, borderDash:[6,3], pointRadius:2, pointHoverRadius:5,
+      fill:false, tension:0.35, parsing:{xAxisKey:"x", yAxisKey:"y"}
+    });
+  }
+  if(showNec){
+    datasets.push({
+      label:"Necessidade", data:fillSeries(rmNec, allDates),
+      borderColor:"#d97706", backgroundColor:"rgba(217,119,6,.07)",
+      borderWidth:2, borderDash:[3,3], pointRadius:2, pointHoverRadius:5,
+      fill:false, tension:0.35, parsing:{xAxisKey:"x", yAxisKey:"y"}
+    });
+  }
+
+  // Linha vertical hoje
+  var hoje = new Date().toISOString().slice(0,10);
+  var annotation = {};
+  if(typeof window.Chart !== "undefined"){
+    annotation = {
+      type:"line", xMin:hoje, xMax:hoje,
+      borderColor:"rgba(220,38,38,.7)", borderWidth:1.5,
+      borderDash:[4,4],
+      label:{display:true, content:"Hoje", position:"start",
+        backgroundColor:"rgba(220,38,38,.8)", color:"#fff",
+        font:{size:9}, padding:3}
+    };
+  }
+
+  cCurva = new Chart(document.getElementById("ch-curva").getContext("2d"),{
+    type:"line",
+    data:{datasets:datasets},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:"index", intersect:false},
+      plugins:{
+        legend:{position:"top", labels:{font:{size:11}, boxWidth:14, padding:12, color:tColor}},
+        tooltip:{callbacks:{
+          title:function(items){
+            var d = items[0].raw.x.split("-");
+            return d[2]+"/"+d[1]+"/"+d[0];
+          },
+          label:function(ctx){
+            return ctx.dataset.label+": "+ctx.raw.y.toFixed(1)+"% ("+Math.round(ctx.raw.y*total/100)+" itens)";
+          }
+        }}
+      },
+      scales:{
+        x:{type:"time", time:{unit:"month", tooltipFormat:"dd/MM/yyyy",
+            displayFormats:{month:"MMM/yy", week:"dd/MM"}},
+          adapters:{date:{}},
+          ticks:{color:tColor, font:{size:9}, maxRotation:30},
+          grid:{color:"rgba(128,128,128,.08)"}
+        },
+        y:{min:0, max:100,
+          ticks:{callback:function(v){return v+"%";}, color:tColor, font:{size:10}},
+          grid:{color:"rgba(128,128,128,.1)"}
+        }
+      }
+    }
+  });
+
+  // ── Gráfico mensal (barras de recebimento por mês)
+  if(cMensal){ cMensal.destroy(); cMensal=null; }
+  var mensal = {};
+  CURVAS.realizado.forEach(function(p,i){
+    var prev = i>0 ? CURVAS.realizado[i-1].n : 0;
+    var qty = p.n - prev;
+    var mes = p.x.slice(0,7); // YYYY-MM
+    mensal[mes] = (mensal[mes]||0) + qty;
+  });
+  var mKeys = Object.keys(mensal).sort();
+  var mVals = mKeys.map(function(k){ return mensal[k]; });
+  var mLabels = mKeys.map(function(k){
+    var parts = k.split("-");
+    var meses = ["","Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+    return meses[parseInt(parts[1])]+"/"+parts[0].slice(2);
+  });
+  cMensal = new Chart(document.getElementById("ch-mensal").getContext("2d"),{
+    type:"bar",
+    data:{labels:mLabels, datasets:[{
+      label:"Itens Recebidos", data:mVals,
+      backgroundColor:"rgba(22,163,74,.7)", borderColor:"#16a34a",
+      borderWidth:2, borderRadius:5
+    }]},
+    options:{responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{color:tColor, font:{size:9}}, grid:{display:false}},
+        y:{beginAtZero:true, ticks:{color:tColor, font:{size:9}}}
+      }
+    }
+  });
+
+  // ── Tabela de marcos
+  var tbody = document.getElementById("cv-tabela");
+  var necMap = {};
+  CURVAS.necessidade.forEach(function(p){ necMap[p.x]=p; });
+  var rows = "";
+  var prevN = 0;
+  CURVAS.realizado.forEach(function(p){
+    var qty = p.n - prevN; prevN = p.n;
+    var necPt = necMap[p.x];
+    var necY = necPt ? necPt.y.toFixed(1)+"%" : "—";
+    var desvio = necPt ? (p.y - necPt.y).toFixed(1) : null;
+    var dColor = desvio===null?"var(--sub)": parseFloat(desvio)>=0?"#16a34a":"#dc2626";
+    var dSign  = desvio!==null && parseFloat(desvio)>0 ? "+" : "";
+    var parts  = p.x.split("-");
+    var dtStr  = parts[2]+"/"+parts[1]+"/"+parts[0];
+    rows += "<tr>"+
+      "<td style='white-space:nowrap;font-weight:600'>"+dtStr+"</td>"+
+      "<td class='nc'>+"+qty+"</td>"+
+      "<td class='nc'>"+p.n+"</td>"+
+      "<td class='nc'><span style='font-weight:700;color:#16a34a'>"+p.y.toFixed(1)+"%</span></td>"+
+      "<td class='nc'>"+necY+"</td>"+
+      "<td class='nc' style='font-weight:700;color:"+dColor+"'>"+(desvio!==null?dSign+desvio+"%":"—")+"</td>"+
+      "</tr>";
+  });
+  tbody.innerHTML = rows;
+}
+
 window.onload = function(){
   applyStoredTheme();
   loadExtraUsers();
