@@ -126,6 +126,9 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);font-
 .sanc-kpi-chip{display:flex;align-items:center;gap:5px;background:var(--hover);border:1px solid var(--border);border-radius:20px;padding:4px 10px}
 .sanc-kpi-chip .dot{width:8px;height:8px;border-radius:50%}
 .sanc-kpi-chip span{font-size:10.5px;font-weight:700;color:var(--text)}
+.sf-btn{padding:4px 11px;border-radius:20px;font-size:10px;font-weight:600;cursor:pointer;border:1.5px solid var(--border);background:var(--card);color:var(--sub);transition:.15s}
+.sf-btn:hover{border-color:var(--accent);color:var(--accent)}
+.sf-active{background:var(--accent)!important;color:#fff!important;border-color:var(--accent)!important}
 
 .prazo-ok{background:#dcfce7;color:#15803d;border-radius:6px;padding:2px 6px;font-size:8.5px;font-weight:700;display:block;white-space:nowrap}
 .prazo-warn{background:#fef3c7;color:#b45309;border-radius:6px;padding:2px 6px;font-size:8.5px;font-weight:700;display:block;white-space:nowrap}
@@ -372,9 +375,19 @@ canvas{max-width:100%!important}
     <div class="dash-card" style="grid-column:span 2"><h3 id="dash-reg-title">Percentual de Materiais por Registro</h3><div class="ch-h"><canvas id="chreg"></canvas></div></div>
     <div class="dash-card"><h3 id="dash-resumo-reg-title">Resumo por Registro</h3><div id="reg-summary" style="max-height:260px;overflow-y:auto"></div></div>
     <div class="dash-card" style="grid-column:span 2">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
         <h3 style="margin:0"><span id="dash-sanc-title">Status das SS — Relatório SANC</span></h3>
-        <div id="sanc-kpi-bar" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <div id="sanc-kpi-bar" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+          <div style="width:1px;height:20px;background:var(--border)"></div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap" id="sanc-filter-btns">
+            <button onclick="filterSanc('')"  id="sf-all"  class="sf-btn sf-active">Todas</button>
+            <button onclick="filterSanc('Em Andamento')" id="sf-and" class="sf-btn">Em Andamento</button>
+            <button onclick="filterSanc('Em Revisão')"   id="sf-rev" class="sf-btn">Em Revisão</button>
+            <button onclick="filterSanc('Cancelada')"    id="sf-can" class="sf-btn">Cancelada</button>
+            <button onclick="filterSanc('Planejamento')" id="sf-pla" class="sf-btn">Planejamento</button>
+          </div>
+        </div>
       </div>
       <div id="sanc-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:12px"></div>
     </div>
@@ -1499,6 +1512,16 @@ function renderRegSummary(mats){
   el.innerHTML = html || '<div style="padding:20px;text-align:center;color:var(--sub)">Sem dados.</div>';
 }
 
+var _sancFilter = '';
+function filterSanc(st){
+  _sancFilter = st;
+  var btns = document.querySelectorAll('.sf-btn');
+  btns.forEach(function(b){ b.classList.remove('sf-active'); });
+  var idMap = {'':'sf-all','Em Andamento':'sf-and','Em Revisão':'sf-rev','Cancelada':'sf-can','Planejamento':'sf-pla'};
+  var activeId = idMap[st];
+  if(activeId){ var ab=document.getElementById(activeId); if(ab) ab.classList.add('sf-active'); }
+  buildSSStatusChart();
+}
 function buildSSStatusChart(){
   if(cSSStatus){ cSSStatus.destroy(); cSSStatus = null; }
 
@@ -1535,7 +1558,7 @@ function buildSSStatusChart(){
   var el = document.getElementById("sanc-cards");
   if(!el) return;
   var html = "";
-  var ssKeys = Object.keys(SANC).sort();
+  var ssKeys = Object.keys(SANC).sort().filter(function(ss){ return !_sancFilter || SANC[ss].status===_sancFilter; });
 
   ssKeys.forEach(function(ss){
     var d = SANC[ss];
@@ -2512,102 +2535,149 @@ function renderCurva(){
     document.getElementById("cv-ult").textContent = parts[2]+"/"+parts[1]+"/"+parts[0];
   }
 
-  // ── Gráfico principal Curva S
+  // ── Gráfico Curva S — linha temporal contínua
   if(cCurva){ cCurva.destroy(); cCurva=null; }
 
-  // Criar eixo X unificado (todas as datas das 3 séries)
-  var dateSet = {};
-  if(showReal) CURVAS.realizado.forEach(function(p){ dateSet[p.x]=true; });
-  if(showPrev) CURVAS.previsto.forEach(function(p){ dateSet[p.x]=true; });
-  if(showNec)  CURVAS.necessidade.forEach(function(p){ dateSet[p.x]=true; });
-  var allDates = Object.keys(dateSet).sort();
-
-  function toMap(arr){
-    var m = {};
-    arr.forEach(function(p){ m[p.x] = p; });
-    return m;
+  // Ponto de origem (0%) para cada série
+  function addOrigin(arr){
+    if(!arr.length) return arr;
+    var first = arr[0].x;
+    // Adicionar ponto zero 7 dias antes do primeiro
+    var d0 = new Date(first);
+    d0.setDate(d0.getDate()-7);
+    var origin = {x:d0.toISOString().slice(0,10), y:0, n:0};
+    return [origin].concat(arr);
   }
-  var rmReal = toMap(CURVAS.realizado);
-  var rmPrev = toMap(CURVAS.previsto);
-  var rmNec  = toMap(CURVAS.necessidade);
 
-  // Interpolar: preencher pontos intermediários com último valor conhecido
-  function fillSeries(map, dates){
-    var last = null;
-    return dates.map(function(d){
-      if(map[d]){ last = map[d]; return {x:d, y:map[d].y}; }
-      return last ? {x:d, y:last.y} : null;
-    }).filter(function(v){ return v!==null; });
+  // Estender série até hoje ou além, mantendo último valor
+  function extendToToday(arr){
+    if(!arr.length) return arr;
+    var hoje = new Date().toISOString().slice(0,10);
+    var last = arr[arr.length-1];
+    if(last.x < hoje) return arr.concat([{x:hoje, y:last.y, n:last.n}]);
+    return arr;
   }
 
   var datasets = [];
   if(showReal){
+    var realData = extendToToday(addOrigin(CURVAS.realizado));
     datasets.push({
-      label:"Realizado", data:fillSeries(rmReal, allDates),
-      borderColor:"#16a34a", backgroundColor:"rgba(22,163,74,.12)",
-      borderWidth:2.5, pointRadius:3, pointHoverRadius:6,
-      fill:true, tension:0.35, parsing:{xAxisKey:"x", yAxisKey:"y"}
+      label:"Realizado", data:realData,
+      borderColor:"#16a34a", backgroundColor:"rgba(22,163,74,.10)",
+      borderWidth:3, pointRadius:function(ctx){ return ctx.dataIndex===0||ctx.dataIndex===realData.length-1?5:2; },
+      pointHoverRadius:7, pointBackgroundColor:"#16a34a",
+      fill:true, stepped:false, tension:0,
+      parsing:{xAxisKey:"x", yAxisKey:"y"}
     });
   }
   if(showPrev){
+    var prevData = addOrigin(CURVAS.previsto);
     datasets.push({
-      label:"Previsto", data:fillSeries(rmPrev, allDates),
-      borderColor:"#004b99", backgroundColor:"rgba(0,75,153,.07)",
-      borderWidth:2, borderDash:[6,3], pointRadius:2, pointHoverRadius:5,
-      fill:false, tension:0.35, parsing:{xAxisKey:"x", yAxisKey:"y"}
+      label:"Previsto", data:prevData,
+      borderColor:"#004b99", backgroundColor:"rgba(0,75,153,.05)",
+      borderWidth:2.5, borderDash:[8,4],
+      pointRadius:2, pointHoverRadius:6, pointBackgroundColor:"#004b99",
+      fill:false, tension:0,
+      parsing:{xAxisKey:"x", yAxisKey:"y"}
     });
   }
   if(showNec){
+    var necData = addOrigin(CURVAS.necessidade);
     datasets.push({
-      label:"Necessidade", data:fillSeries(rmNec, allDates),
-      borderColor:"#d97706", backgroundColor:"rgba(217,119,6,.07)",
-      borderWidth:2, borderDash:[3,3], pointRadius:2, pointHoverRadius:5,
-      fill:false, tension:0.35, parsing:{xAxisKey:"x", yAxisKey:"y"}
+      label:"Necessidade", data:necData,
+      borderColor:"#d97706", backgroundColor:"rgba(217,119,6,.05)",
+      borderWidth:2, borderDash:[4,4],
+      pointRadius:2, pointHoverRadius:6, pointBackgroundColor:"#d97706",
+      fill:false, tension:0,
+      parsing:{xAxisKey:"x", yAxisKey:"y"}
     });
   }
 
-  // Linha vertical hoje
-  var hoje = new Date().toISOString().slice(0,10);
-  var annotation = {};
-  if(typeof window.Chart !== "undefined"){
-    annotation = {
-      type:"line", xMin:hoje, xMax:hoje,
-      borderColor:"rgba(220,38,38,.7)", borderWidth:1.5,
-      borderDash:[4,4],
-      label:{display:true, content:"Hoje", position:"start",
-        backgroundColor:"rgba(220,38,38,.8)", color:"#fff",
-        font:{size:9}, padding:3}
-    };
-  }
+  // Plugin: linha vertical "Hoje" desenhada no canvas
+  var hojeStr = new Date().toISOString().slice(0,10);
+  var hojePlugin = {
+    id:"hojePlugin",
+    afterDraw:function(chart){
+      var xScale = chart.scales.x;
+      var yScale = chart.scales.y;
+      if(!xScale||!yScale) return;
+      var xPx = xScale.getPixelForValue(new Date(hojeStr).getTime ? new Date(hojeStr) : hojeStr);
+      if(!xPx) return;
+      var ctx2 = chart.ctx;
+      ctx2.save();
+      ctx2.setLineDash([5,4]);
+      ctx2.strokeStyle = "rgba(220,38,38,.7)";
+      ctx2.lineWidth = 1.5;
+      ctx2.beginPath();
+      ctx2.moveTo(xPx, yScale.top);
+      ctx2.lineTo(xPx, yScale.bottom);
+      ctx2.stroke();
+      ctx2.setLineDash([]);
+      ctx2.fillStyle = "rgba(220,38,38,.85)";
+      ctx2.font = "bold 9px Inter,sans-serif";
+      ctx2.textAlign = "center";
+      var lbl = tColor==="#e5e9f0"?"Hoje":"Hoje";
+      var tw = ctx2.measureText(lbl).width+10;
+      ctx2.fillRect(xPx-tw/2, yScale.top-1, tw, 16);
+      ctx2.fillStyle = "#fff";
+      ctx2.fillText(lbl, xPx, yScale.top+10);
+      ctx2.restore();
+    }
+  };
 
   cCurva = new Chart(document.getElementById("ch-curva").getContext("2d"),{
     type:"line",
     data:{datasets:datasets},
+    plugins:[hojePlugin],
     options:{
       responsive:true, maintainAspectRatio:false,
       interaction:{mode:"index", intersect:false},
       plugins:{
-        legend:{position:"top", labels:{font:{size:11}, boxWidth:14, padding:12, color:tColor}},
-        tooltip:{callbacks:{
-          title:function(items){
-            var d = items[0].raw.x.split("-");
-            return d[2]+"/"+d[1]+"/"+d[0];
-          },
-          label:function(ctx){
-            return ctx.dataset.label+": "+ctx.raw.y.toFixed(1)+"% ("+Math.round(ctx.raw.y*total/100)+" itens)";
+        legend:{position:"top", labels:{
+          font:{size:11}, boxWidth:14, padding:12, color:tColor,
+          usePointStyle:true, pointStyle:"line"
+        }},
+        tooltip:{
+          backgroundColor:tColor==="#e5e9f0"?"rgba(15,20,32,.9)":"rgba(255,255,255,.95)",
+          titleColor:tColor==="#e5e9f0"?"#e5e9f0":"#1a2332",
+          bodyColor:tColor==="#e5e9f0"?"#9aa4b8":"#374151",
+          borderColor:"rgba(128,128,128,.2)", borderWidth:1,
+          padding:10, cornerRadius:8,
+          callbacks:{
+            title:function(items){
+              var d = items[0].raw.x.split("-");
+              return d[2]+"/"+d[1]+"/"+d[0];
+            },
+            label:function(ctx){
+              var n = ctx.raw.n !== undefined ? " ("+ctx.raw.n+" itens)" : "";
+              return " "+ctx.dataset.label+": "+ctx.raw.y.toFixed(1)+"%"+n;
+            },
+            afterBody:function(items){
+              var pcts = items.map(function(i){ return {l:i.dataset.label,v:i.raw.y}; });
+              var real = pcts.find(function(p){ return p.l==="Realizado"; });
+              var prev = pcts.find(function(p){ return p.l==="Previsto"||p.l==="Planned"; });
+              if(real && prev){
+                var dev = (real.v - prev.v).toFixed(1);
+                return [" Desvio: "+(dev>0?"+":"")+dev+"%"];
+              }
+              return [];
+            }
           }
-        }}
+        }
       },
       scales:{
-        x:{type:"time", time:{unit:"month", tooltipFormat:"dd/MM/yyyy",
-            displayFormats:{month:"MMM/yy", week:"dd/MM"}},
+        x:{type:"time",
+          time:{unit:"month", tooltipFormat:"dd/MM/yyyy",
+            displayFormats:{day:"dd/MM",week:"dd/MM",month:"MMM/yy"}},
           adapters:{date:{}},
-          ticks:{color:tColor, font:{size:9}, maxRotation:30},
-          grid:{color:"rgba(128,128,128,.08)"}
+          ticks:{color:tColor, font:{size:9}, maxRotation:0, maxTicksLimit:12},
+          grid:{color:"rgba(128,128,128,.06)", lineWidth:1},
+          border:{dash:[4,4]}
         },
-        y:{min:0, max:100,
-          ticks:{callback:function(v){return v+"%";}, color:tColor, font:{size:10}},
-          grid:{color:"rgba(128,128,128,.1)"}
+        y:{min:0, max:105,
+          ticks:{callback:function(v){ return v<=100?v+"%":""; }, color:tColor, font:{size:10}, stepSize:10},
+          grid:{color:"rgba(128,128,128,.08)"},
+          title:{display:true, text:"% Acumulado", color:tColor, font:{size:10}}
         }
       }
     }
