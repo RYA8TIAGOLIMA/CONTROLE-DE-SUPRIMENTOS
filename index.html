@@ -2530,8 +2530,27 @@ function renderCurva(){
     var dEl = document.getElementById("cv-desvio");
     dEl.textContent = (desvio>0?"+":"") + desvio + "%";
     dEl.style.color = desvio>=0 ? "#16a34a" : "#dc2626";
-    var parts = lastReal.x.split("-");
-    document.getElementById("cv-ult").textContent = parts[2]+"/"+parts[1]+"/"+parts[0];
+    // Data do ultimo recebimento: calculada a partir dos dados reais atuais (nao do CURVAS estatico)
+    var ultimaDataReal = null;
+    allM().forEach(function(m){
+      if(m.status_linha!=="Recebido" && m.status_linha!=="Integrado") return;
+      var s = m.recebido_em;
+      if(!s) return;
+      var p = s.split("/");
+      if(p.length!==3) return;
+      var d = new Date(parseInt(p[2]), parseInt(p[1])-1, parseInt(p[0]));
+      if(isNaN(d.getTime())) return;
+      if(!ultimaDataReal || d > ultimaDataReal) ultimaDataReal = d;
+    });
+    if(ultimaDataReal){
+      var dd = String(ultimaDataReal.getDate()).padStart(2,"0");
+      var mm = String(ultimaDataReal.getMonth()+1).padStart(2,"0");
+      var yy = ultimaDataReal.getFullYear();
+      document.getElementById("cv-ult").textContent = dd+"/"+mm+"/"+yy;
+    } else {
+      var parts = lastReal.x.split("-");
+      document.getElementById("cv-ult").textContent = parts[2]+"/"+parts[1]+"/"+parts[0];
+    }
   }
 
   // Agrupar por MES (linha do tempo limpa, sem ruido diario)
