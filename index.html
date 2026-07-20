@@ -327,7 +327,7 @@ canvas{max-width:100%!important}
     <div class="tb-sep"></div>
     <div class="topbar-title">
       <h1>Controle de Suprimentos por Solicitação de Serviço</h1>
-      <p>Portfólio: <span id="hpf">P66-2026-CM</span> &nbsp;|&nbsp; Plataforma: <span id="hpl">P-66</span> &nbsp;|&nbsp; RCM Aplicação &nbsp;|&nbsp; <span id="gd">—</span></p>
+      <p>Portfólio: <span id="hpf">P66-2026-CM</span> <select id="hpf-sel" onchange="changePortfolio(this.value)" style="background:rgba(255,255,255,.13);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:6px;padding:1px 6px;font-size:10.5px;font-weight:700;outline:none;cursor:pointer;margin-left:4px"><option value="">Todos</option><option value="P66-2026-CM">P66-2026-CM</option><option value="P69-2026-CM">P69-2026-CM</option></select> &nbsp;|&nbsp; Plataforma: <span id="hpl">P-66</span> &nbsp;|&nbsp; RCM Aplicação &nbsp;|&nbsp; <span id="gd">—</span></p>
     </div>
   </div>
   <div class="topbar-right">
@@ -924,6 +924,12 @@ function populateSel(){
   renderSnapMgr();
 }
 
+function changePortfolio(val){
+  PORTFOLIO_FILTER = val;
+  try{ localStorage.setItem("rcm_portfolio_filter", val); }catch(e){}
+  if(typeof CID !== "undefined" && CID){ loadSnap(CID); }
+}
+
 function loadSnap(id){
   var snap = null;
   for(var i=0;i<SNAPS.length;i++){ if(SNAPS[i].id === id){ snap = SNAPS[i]; break; } }
@@ -943,7 +949,7 @@ function loadSnap(id){
     document.getElementById("ph-pl").textContent = fss.plat || "P-66";
   }
   var am = allM();
-  document.getElementById("iss").textContent = Object.keys(CUR).length + " SS";
+  document.getElementById("iss").textContent = visibleSSKeys().length + " SS";
   document.getElementById("iit").textContent = am.length + " Itens";
   document.getElementById("sinfo").textContent = "| " + snap.label;
   var de = document.getElementById("sdiff");
@@ -1400,9 +1406,16 @@ var SM = {
   "Aguardando Recebimento":{cls:"ca",hex:"#db2777"}, "Cancelado":{cls:"cc",hex:"#dc2626"}
 };
 function cC(s){ return (SM[s] || {cls:"ci"}).cls; }
+var PORTFOLIO_FILTER = "";
+function visibleSSKeys(){
+  return Object.keys(CUR).filter(function(ss){
+    return !PORTFOLIO_FILTER || (CUR[ss].portfolio||"") === PORTFOLIO_FILTER;
+  });
+}
 function allM(){
   var a = [];
   Object.keys(CUR).forEach(function(ss){
+    if(PORTFOLIO_FILTER && (CUR[ss].portfolio||"") !== PORTFOLIO_FILTER) return;
     CUR[ss].materiais.forEach(function(m){
       var copy = {}; for(var k in m){ copy[k] = m[k]; }
       copy._ss = ss;
@@ -1623,7 +1636,7 @@ function render100(mats){
 
   // SS 100% recebidas
   var ssFull = [];
-  Object.keys(CUR).forEach(function(key){
+  visibleSSKeys().forEach(function(key){
     var list = CUR[key].materiais;
     if(!list.length) return;
     var recCount = 0;
@@ -1753,7 +1766,7 @@ function buildCharts(){
       onClick:function(e,els){ if(els.length){ fBySt(SO[els[0].index]); goTab("consolidado"); } }
     }
   });
-  var ssK = Object.keys(CUR);
+  var ssK = visibleSSKeys();
   var ssC = ["#004b99","#059669","#dc2626","#2563eb","#7c3aed","#d97706"];
   cSS = new Chart(document.getElementById("chss").getContext("2d"), {
     type:"bar",
@@ -1799,7 +1812,7 @@ function updCharts(){
 }
 
 function populateFilters(){
-  var ssK = Object.keys(CUR);
+  var ssK = visibleSSKeys();
   var stSet = {};
   allM().forEach(function(m){ if(m.status_linha) stSet[m.status_linha]=true; });
   var allSt = Object.keys(stSet).sort();
@@ -1842,7 +1855,7 @@ function applyFS(){
   var html = "";
   var vis = 0;
   var idx = 0;
-  Object.keys(CUR).forEach(function(key){
+  visibleSSKeys().forEach(function(key){
     var ss = CUR[key];
     idx++;
     if(fSS && key !== fSS) return;
@@ -2772,6 +2785,10 @@ window.onload = function(){
   loadExtraUsers();
   applyPwdOverrides();
   var sl=localStorage.getItem("rcm_lang"); if(sl) setLang(sl);
+  try{
+    var sp = localStorage.getItem("rcm_portfolio_filter");
+    if(sp !== null){ PORTFOLIO_FILTER = sp; var selEl=document.getElementById("hpf-sel"); if(selEl) selEl.value = sp; }
+  }catch(e){}
 
   document.getElementById("tb-logo").src = LOGO;
   document.getElementById("login-logo").src = LOGO;
