@@ -308,7 +308,7 @@ canvas{max-width:100%!important}
   <p>Portfólio: <span id="ph-pf">P66-2026-CM</span> | Plataforma: <span id="ph-pl">P-66</span> | RCM Aplicação | Emitido: <span id="ph-dt"></span></p></div>
 </div>
 
-<div class="login-overlay" id="login-overlay">
+<div class="login-overlay" id="login-overlay" style="display:none">
   <div class="login-box">
     <img id="login-logo" src="" alt="Estrutural Engenharia">
     <h2>Controle de Suprimentos</h2>
@@ -374,23 +374,7 @@ canvas{max-width:100%!important}
     <div class="dash-card"><h3 id="dash-por-ss-title">Itens por SS</h3><div class="ch-sm"><canvas id="chss"></canvas></div></div>
     <div class="dash-card" style="grid-column:span 2"><h3 id="dash-reg-title">Percentual de Materiais por Registro</h3><div class="ch-h"><canvas id="chreg"></canvas></div></div>
     <div class="dash-card"><h3 id="dash-resumo-reg-title">Resumo por Registro</h3><div id="reg-summary" style="max-height:260px;overflow-y:auto"></div></div>
-    <div class="dash-card" style="grid-column:span 2">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
-        <h3 style="margin:0"><span id="dash-sanc-title">Status das SS — Relatório SANC</span></h3>
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <div id="sanc-kpi-bar" style="display:flex;gap:6px;flex-wrap:wrap"></div>
-          <div style="width:1px;height:20px;background:var(--border)"></div>
-          <div style="display:flex;gap:5px;flex-wrap:wrap" id="sanc-filter-btns">
-            <button onclick="filterSanc('')"  id="sf-all"  class="sf-btn sf-active">Todas</button>
-            <button onclick="filterSanc('Em Andamento')" id="sf-and" class="sf-btn">Em Andamento</button>
-            <button onclick="filterSanc('Em Revisão')"   id="sf-rev" class="sf-btn">Em Revisão</button>
-            <button onclick="filterSanc('Cancelada')"    id="sf-can" class="sf-btn">Cancelada</button>
-            <button onclick="filterSanc('Planejamento')" id="sf-pla" class="sf-btn">Planejamento</button>
-          </div>
-        </div>
-      </div>
-      <div id="sanc-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:12px"></div>
-    </div>
+    
     <div class="dash-card" style="grid-column:span 2"><h3 id="dash-100-title">100% Recebido — SS e Registros Concluídos</h3><div id="full100" style="display:grid;grid-template-columns:1fr 1fr;gap:16px"></div></div>
   </div>
 </div>
@@ -926,8 +910,54 @@ function populateSel(){
 
 function changePortfolio(val){
   PORTFOLIO_FILTER = val;
+  // Atualizar header: portfólio e plataforma
+  var hpf = document.getElementById("hpf");
+  var hpl = document.getElementById("hpl");
+  var phPf = document.getElementById("ph-pf");
+  var phPl = document.getElementById("ph-pl");
+  // Mapa portfólio → plataforma
+  var platMap = {"P66-2026-CM":"P-66","P69-2026-CM":"P-69"};
+  var platLabel = val ? (platMap[val]||val) : "";
+  if(hpf) hpf.textContent = val||"Todos";
+  if(hpl && platLabel) hpl.textContent = platLabel;
+  if(phPf) phPf.textContent = val||"Todos";
+  if(phPl && platLabel) phPl.textContent = platLabel;
   try{ localStorage.setItem("rcm_portfolio_filter", val); }catch(e){}
   if(typeof CID !== "undefined" && CID){ loadSnap(CID); }
+}
+
+function computeCurvas(mats){
+  function parseDate(s){
+    if(!s) return null;
+    var p=s.split("/"); if(p.length!==3) return null;
+    var d=new Date(parseInt(p[2]),parseInt(p[1])-1,parseInt(p[0]));
+    return isNaN(d.getTime())?null:d;
+  }
+  function toISO(d){ return d.toISOString().slice(0,10); }
+  function buildSeries(field, statusFilter){
+    var pts=[];
+    mats.forEach(function(m){
+      if(statusFilter && statusFilter.indexOf(m.status_linha)<0) return;
+      var d=parseDate(m[field]); if(!d) return;
+      pts.push(toISO(d));
+    });
+    if(!pts.length) return [];
+    var cnt={};
+    pts.forEach(function(x){ cnt[x]=(cnt[x]||0)+1; });
+    var uniq=Object.keys(cnt).sort();
+    var acc=0, tot=mats.length||1, out=[];
+    uniq.forEach(function(x){
+      acc+=cnt[x];
+      out.push({x:x, y:Math.round(acc/tot*10000)/100, n:acc});
+    });
+    return out;
+  }
+  CURVAS={
+    total:mats.length,
+    realizado:buildSeries("recebido_em",["Recebido","Integrado"]),
+    previsto:buildSeries("prazo_receb",null),
+    necessidade:buildSeries("data_nec",null)
+  };
 }
 
 function loadSnap(id){
@@ -938,15 +968,19 @@ function loadSnap(id){
   PREV = idx < SNAPS.length - 1 ? SNAPS[idx+1].data : {};
   CID = id;
   CUR = snap.data;
+  restoreTags(idx);
   var dt = new Date(snap.datetime);
   document.getElementById("gd").textContent = dt.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"});
   var firstKey = visibleSSKeys()[0] || Object.keys(CUR)[0];
   if(firstKey){
     var fss = CUR[firstKey];
-    document.getElementById("hpf").textContent = fss.portfolio || "P66-2026-CM";
-    document.getElementById("hpl").textContent = fss.plat || "P-66";
-    document.getElementById("ph-pf").textContent = fss.portfolio || "P66-2026-CM";
-    document.getElementById("ph-pl").textContent = fss.plat || "P-66";
+    var platMapH = {"P66-2026-CM":"P-66","P69-2026-CM":"P-69"};
+    var pfH = PORTFOLIO_FILTER || fss.portfolio || "P66-2026-CM";
+    var plH = PORTFOLIO_FILTER ? (platMapH[PORTFOLIO_FILTER] || fss.plat || "") : (fss.plat || "P-66");
+    document.getElementById("hpf").textContent = PORTFOLIO_FILTER ? pfH : "Todos";
+    document.getElementById("hpl").textContent = plH;
+    document.getElementById("ph-pf").textContent = PORTFOLIO_FILTER ? pfH : "Todos";
+    document.getElementById("ph-pl").textContent = plH;
   }
   var am = allM();
   document.getElementById("iss").textContent = visibleSSKeys().length + " SS";
@@ -961,15 +995,38 @@ function loadSnap(id){
   }
   document.getElementById("scnt").innerHTML = '<span class="snap-badge">' + SNAPS.length + " snapshot(s)</span>";
   AST = "";
+  computeCurvas(am);
   populateFilters();
   renderKPIs(am);
   render100(am);
   renderRegSummary(am);
-  buildSSStatusChart();
   rebuildCharts();
   applyFS();
   applyFC();
   renderSnapMgr();
+  var fp = document.getElementById("panel-fabricacao");
+  if(fp && fp.classList.contains("active")) renderFab();
+}
+
+// TAGs de fabricacao: usa as do snapshot ativo (ou do mais recente anterior que tenha TAGs)
+var DEFAULT_TAGS = null;
+function restoreTags(idx){
+  if(!DEFAULT_TAGS) DEFAULT_TAGS = TAGS.slice();
+  var src = null;
+  for(var i=idx;i<SNAPS.length;i++){ if(SNAPS[i].tags && SNAPS[i].tags.length){ src = SNAPS[i].tags; break; } }
+  if(!src) src = DEFAULT_TAGS;
+  TAGS.length = 0;
+  src.forEach(function(t){ TAGS.push(t); });
+}
+function tagPortfolio(t){
+  if(t.portfolio) return t.portfolio;
+  if(CUR[t.ss] && CUR[t.ss].portfolio) return CUR[t.ss].portfolio;
+  if(SEED[t.ss] && SEED[t.ss].portfolio) return SEED[t.ss].portfolio;
+  var m = String(t.tag||"").match(/^P(\d+)-/);
+  return m ? ("P" + m[1] + "-2026-CM") : "";
+}
+function visibleTags(){
+  return TAGS.filter(function(t){ return !PORTFOLIO_FILTER || tagPortfolio(t) === PORTFOLIO_FILTER; });
 }
 
 function renderSnapMgr(){
@@ -1053,18 +1110,25 @@ function parseWorkbook(buf, label){
   });
   if(!rcmSheetName) rcmSheetName = wb.SheetNames[0];
 
-  var rows = XLSX.utils.sheet_to_json(wb.Sheets[rcmSheetName], {defval:"", range:1});
-  if(rows.length){ console.log("[RCM] Colunas detectadas:", Object.keys(rows[0])); }
-  var firstKeys = rows.length ? Object.keys(rows[0]) : [];
-  var hasHeader = false;
-  firstKeys.forEach(function(k){
-    if(k.indexOf("Projeto") >= 0 || k.indexOf("Item da LM") >= 0) hasHeader = true;
-  });
-  if(!hasHeader){
-    rows = XLSX.utils.sheet_to_json(wb.Sheets[rcmSheetName], {defval:""});
+  // Localiza automaticamente a linha de cabecalho (o RCM pode exportar
+  // 1, 2 ou mais linhas de agrupamento acima dos nomes das colunas)
+  var rcmWs = wb.Sheets[rcmSheetName];
+  var rawTop = XLSX.utils.sheet_to_json(rcmWs, {header:1, defval:"", blankrows:true, range:0});
+  var hdrIdx = -1;
+  for(var hi=0; hi<Math.min(rawTop.length, 30); hi++){
+    var cells = rawTop[hi].map(function(c){ return String(c).replace(/\s+/g," ").trim(); });
+    if(cells.indexOf("Item da LM") >= 0 && cells.indexOf("Nº do Projeto de Execução") >= 0){ hdrIdx = hi; break; }
   }
+  if(hdrIdx < 0){
+    throw new Error("Cabecalho nao encontrado na aba \"" + rcmSheetName + "\" (colunas \"Nº do Projeto de Execução\" e \"Item da LM\").");
+  }
+  var rows = XLSX.utils.sheet_to_json(rcmWs, {defval:"", range:hdrIdx});
+  if(rows.length){ console.log("[RCM] Cabecalho na linha " + (hdrIdx+1) + ". Colunas:", Object.keys(rows[0])); }
 
   var parsed = parseRows(rows);
+  if(!Object.keys(parsed).length){
+    throw new Error("Nenhuma SS encontrada na aba \"" + rcmSheetName + "\".");
+  }
 
   Object.keys(parsed).forEach(function(ss){
     var seen = {};
@@ -1130,7 +1194,8 @@ function parseWorkbook(buf, label){
 
   var snap = {
     id:"snap_" + Date.now(), label:label, datetime:new Date().toISOString(),
-    ss_count:Object.keys(parsed).length, item_count:totalIt, data:parsed
+    ss_count:Object.keys(parsed).length, item_count:totalIt, data:parsed,
+    tags: fabSheetName ? TAGS.slice() : null
   };
   return {snap:snap, item_count:totalIt, ss_count:Object.keys(parsed).length, tag_count:tagCount};
 }
@@ -1149,7 +1214,9 @@ function parseFabRows(rows){
         rows:[], ss:String(row["Nº Interno"]||row["No Interno"]||"").trim(),
         tipo:String(row["Tipo"]||"").trim(),
         diametro:String(row["Diâmetro"]||row["Diametro"]||"").trim(),
-        registro:String(row["Registro"]||"").trim()
+        registro:String(row["Registro"]||"").trim(),
+        portfolio:String(row["Portfólio"]||row["Portfolio"]||"").trim(),
+        plat:String(row["UOP"]||"").trim()
       };
     }
     seen[tag].rows.push(row);
@@ -1205,7 +1272,8 @@ function parseFabRows(rows){
       tag:tag, ss:g.ss, tipo:g.tipo, diametro:g.diametro,
       avanco:av, status_exe:stExe, status:status,
       peso:peso, area:area, sisfab:sisfab,
-      registro:g.registro, ensaios:ensaios
+      registro:g.registro, ensaios:ensaios,
+      portfolio:g.portfolio, plat:g.plat
     });
   });
   return out;
@@ -1253,15 +1321,30 @@ function parseRows(rows){
     romaneio:["Nº Romaneio", "Nº Romaneio.1"],
     data_nec:["Data de Necessidade", "Data Necessidade", "Dt. Necessidade"]
   };
+  // Normaliza nomes de coluna (espacos duplos, quebras de linha, espaco no fim)
+  function nk(s){ return String(s).replace(/\s+/g," ").trim().toLowerCase(); }
+  var KMAP = {};
+  if(rows.length){
+    Object.keys(rows[0]).forEach(function(k){
+      var n = nk(k);
+      if(KMAP[n] === undefined) KMAP[n] = k;
+      var m = n.match(/^(.*)_(\d+)$/); // duplicadas: SheetJS gera "Nome_1"
+      if(m){ var alt = m[1] + "." + m[2]; if(KMAP[alt] === undefined) KMAP[alt] = k; }
+    });
+  }
   function gv(row, keys){
     for(var i=0;i<keys.length;i++){
-      if(row[keys[i]] !== undefined && row[keys[i]] !== "") return row[keys[i]];
+      var k = row[keys[i]] !== undefined ? keys[i] : KMAP[nk(keys[i])];
+      if(k !== undefined && row[k] !== undefined && row[k] !== "") return row[k];
     }
     return "";
   }
   function fd(v){
     if(!v) return "";
-    if(v instanceof Date) return v.toLocaleDateString("pt-BR");
+    if(v instanceof Date){
+      // corrige deslocamento de minutos do fuso historico (datas aparecendo no dia anterior)
+      return new Date(Math.round(v.getTime()/3600000)*3600000).toLocaleDateString("pt-BR");
+    }
     if(typeof v === "number") return new Date(Math.round((v-25569)*86400*1000)).toLocaleDateString("pt-BR");
     return String(v);
   }
@@ -1537,7 +1620,6 @@ function filterSanc(st){
   var idMap = {'':'sf-all','Em Andamento':'sf-and','Em Revisão':'sf-rev','Cancelada':'sf-can','Planejamento':'sf-pla'};
   var activeId = idMap[st];
   if(activeId){ var ab=document.getElementById(activeId); if(ab) ab.classList.add('sf-active'); }
-  buildSSStatusChart();
 }
 function buildSSStatusChart(){
   if(cSSStatus){ cSSStatus.destroy(); cSSStatus = null; }
@@ -1695,9 +1777,11 @@ function renderKPIs(mats){
   var cnt = {};
   mats.forEach(function(m){ var s=m.status_linha||""; cnt[s]=(cnt[s]||0)+1; });
   var pTot = 0;
-  Object.keys(PREV).forEach(function(k){ pTot += PREV[k].materiais.length; });
   var pCnt = {};
+  // Filtrar PREV pelo mesmo portfólio ativo
   Object.keys(PREV).forEach(function(k){
+    if(PORTFOLIO_FILTER && (PREV[k].portfolio||"")!==PORTFOLIO_FILTER) return;
+    pTot += PREV[k].materiais.length;
     PREV[k].materiais.forEach(function(m){ var s=m.status_linha||""; pCnt[s]=(pCnt[s]||0)+1; });
   });
   var defs = [
@@ -2024,10 +2108,8 @@ function renderFab(){
   var sel = document.getElementById("fabss");
   var cur = sel.value;
   while(sel.options.length>1) sel.remove(1);
-  var visSS = {};
-  visibleSSKeys().forEach(function(s){ visSS[s]=true; });
   var ssSet = {};
-  TAGS.forEach(function(t){ if(t.ss && visSS[t.ss]) ssSet[t.ss]=true; });
+  visibleTags().forEach(function(t){ if(t.ss) ssSet[t.ss]=true; });
   Object.keys(ssSet).sort().forEach(function(s){ var o=document.createElement("option"); o.value=s; o.textContent=s; sel.appendChild(o); });
   sel.value = cur;
 
@@ -2035,14 +2117,12 @@ function renderFab(){
   var curT = selT.value;
   while(selT.options.length>1) selT.remove(1);
   var tipoSet = {};
-  TAGS.forEach(function(t){ if(t.tipo) tipoSet[t.tipo]=true; });
+  visibleTags().forEach(function(t){ if(t.tipo) tipoSet[t.tipo]=true; });
   Object.keys(tipoSet).sort().forEach(function(s){ var o=document.createElement("option"); o.value=s; o.textContent=s; selT.appendChild(o); });
   selT.value = curT;
 
   // Filtrar
-  var visibleSet = {};
-  visibleSSKeys().forEach(function(s){ visibleSet[s]=true; });
-  var tags = TAGS.filter(function(t){ return visibleSet[t.ss]; });
+  var tags = visibleTags();
   if(fSS)   tags = tags.filter(function(t){ return t.ss===fSS; });
   if(fTipo) tags = tags.filter(function(t){ return t.tipo===fTipo; });
 
@@ -2079,7 +2159,10 @@ function renderFab(){
       '<span style="font-size:11px;font-weight:600;color:var(--text)">'+s+'</span>'+
       '<span style="font-size:10px;color:var(--sub)">'+m.toFixed(1)+'%</span></div>';
   });
-  document.getElementById("fab-ss-list").innerHTML = ssHtml;
+  document.getElementById("fab-ss-list").innerHTML = ssHtml || "<div style='font-size:11px;color:var(--sub)'>Nenhuma TAG para este portfólio.</div>";
+  var pfSet = {};
+  tags.forEach(function(t){ var p = tagPortfolio(t); if(p) pfSet[p] = true; });
+  document.getElementById("fab-portfolio").textContent = Object.keys(pfSet).sort().join(", ") || (PORTFOLIO_FILTER || "—");
 
   // Chart 1: Barras horizontais por TAG (avanço)
   if(cFab){ cFab.destroy(); cFab=null; }
@@ -2808,18 +2891,10 @@ window.onload = function(){
   document.getElementById("lp").addEventListener("keydown", function(e){ if(e.key==="Enter") doLogin(); });
   document.getElementById("lbtn").addEventListener("click", doLogin);
 
-  var sess = sessionStorage.getItem("rcm_sess");
-  if(sess){
-    try{
-      var s = JSON.parse(sess);
-      var found = null;
-      for(var i=0;i<USERS.length;i++){ if(USERS[i].u===s.u){ found=USERS[i]; break; } }
-      if(found){ curUser = found; showDash(); return; }
-    }catch(e){}
-    sessionStorage.removeItem("rcm_sess");
-  }
-  document.getElementById("login-overlay").style.display = "flex";
-  setTimeout(function(){ document.getElementById("lu").focus(); }, 100);
+  // Acesso livre (sem senha): entra direto com permissao de importacao
+  curUser = {u:"usuario", d:"Suprimentos", role:"admin", c:"#004b99"};
+  showDash();
+  ["btn-users","uchip"].forEach(function(id){ var el=document.getElementById(id); if(el) el.style.display="none"; });
 };
 
 </script>
